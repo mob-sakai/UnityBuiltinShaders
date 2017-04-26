@@ -266,8 +266,10 @@
 // SAMPLE_DEPTH_TEXTURE_PROJ(sampler,uv): projected sample
 // SAMPLE_DEPTH_TEXTURE_LOD(sampler,uv): sample with LOD level
 
-#if defined(SHADER_API_PSP2) && !defined(SHADER_API_PSM)
-#   define SAMPLE_DEPTH_TEXTURE(sampler, uv) (tex2D<float>(sampler, uv))
+#if defined(SHADER_API_PSP2)
+    half4 SAMPLE_DEPTH_TEXTURE(sampler2D s, float4 uv) { return tex2D<float>(s, (float3)uv); }
+    half4 SAMPLE_DEPTH_TEXTURE(sampler2D s, float3 uv) { return tex2D<float>(s, uv); }
+    half4 SAMPLE_DEPTH_TEXTURE(sampler2D s, float2 uv) { return tex2D<float>(s, uv); }
 #   define SAMPLE_DEPTH_TEXTURE_PROJ(sampler, uv) (tex2DprojShadow(sampler, uv))
 #   define SAMPLE_DEPTH_TEXTURE_LOD(sampler, uv) (tex2Dlod<float>(sampler, uv))
 #   define SAMPLE_RAW_DEPTH_TEXTURE(sampler, uv) SAMPLE_DEPTH_TEXTURE(sampler, uv)
@@ -549,7 +551,7 @@
 #define VFACE S_FRONT_FACE
 #endif
 // Is VFACE affected by flipped projection?
-#if defined(SHADER_API_D3D9) || defined(SHADER_API_PSSL)
+#if defined(SHADER_API_D3D9)
 #define UNITY_VFACE_AFFECTED_BY_PROJECTION 1
 #endif
 
@@ -560,7 +562,7 @@
 
 
 // Declare position that is also available for read in fragment shader
-#if defined(SHADER_API_D3D9) && defined(SHADER_STAGE_FRAGMENT) && SHADER_TARGET >= 30
+#if (defined(SHADER_API_D3D9) || defined(SHADER_API_PSP2)) && defined(SHADER_STAGE_FRAGMENT) && SHADER_TARGET >= 30
 #define UNITY_POSITION(pos) float4 pos : VPOS
 #else
 // On D3D reading screen space coordinates from fragment shader requires SM3.0

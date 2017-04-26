@@ -120,6 +120,26 @@ half3 UnpackScaleNormal(half4 packednormal, half bumpScale)
     #endif
 }
 
+half3 UnpackScaleNormalRGorAG(half4 packednormal, half bumpScale)
+{
+    #if defined(UNITY_NO_DXT5nm)
+        return packednormal.xyz * 2 - 1;
+    #else
+        // This do the trick
+        packednormal.x *= packednormal.w;
+
+        half3 normal;
+        normal.xy = (packednormal.xy * 2 - 1);
+        #if (SHADER_TARGET >= 30)
+            // SM2.0: instruction count limitation
+            // SM2.0: normal scaler is not supported
+            normal.xy *= bumpScale;
+        #endif
+        normal.z = sqrt(1.0 - saturate(dot(normal.xy, normal.xy)));
+        return normal;
+    #endif
+}
+
 half3 BlendNormals(half3 n1, half3 n2)
 {
     return normalize(half3(n1.xy + n2.xy, n1.z*n2.z));

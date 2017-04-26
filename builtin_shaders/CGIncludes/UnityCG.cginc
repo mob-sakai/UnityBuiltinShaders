@@ -657,6 +657,17 @@ inline fixed3 UnpackNormalDXT5nm (fixed4 packednormal)
     return normal;
 }
 
+// Unpack normal as DXT5nm (1, y, 1, x) or BC5 (x, y, 0, 1)
+fixed3 UnpackNormalmapRGorAG(fixed4 packednormal)
+{
+    // This do the trick
+   packednormal.x *= packednormal.w;
+
+    fixed3 normal;
+    normal.xy = packednormal.xy * 2 - 1;
+    normal.z = sqrt(1 - saturate(dot(normal.xy, normal.xy)));
+    return normal;
+}
 inline fixed3 UnpackNormal(fixed4 packednormal)
 {
 #if defined(UNITY_NO_DXT5nm)
@@ -679,13 +690,6 @@ inline float LinearEyeDepth( float z )
 }
 
 
-#if defined(UNITY_SINGLE_PASS_STEREO)
-float2 TransformStereoScreenSpaceTex(float2 uv, float w)
-{
-    float4 scaleOffset = unity_StereoScaleOffset[unity_StereoEyeIndex];
-    return uv.xy * scaleOffset.xy + scaleOffset.zw * w;
-}
-
 inline float2 UnityStereoScreenSpaceUVAdjustInternal(float2 uv, float4 scaleAndOffset)
 {
     return uv.xy * scaleAndOffset.xy + scaleAndOffset.zw;
@@ -697,6 +701,13 @@ inline float4 UnityStereoScreenSpaceUVAdjustInternal(float4 uv, float4 scaleAndO
 }
 
 #define UnityStereoScreenSpaceUVAdjust(x, y) UnityStereoScreenSpaceUVAdjustInternal(x, y)
+
+#if defined(UNITY_SINGLE_PASS_STEREO)
+float2 TransformStereoScreenSpaceTex(float2 uv, float w)
+{
+    float4 scaleOffset = unity_StereoScaleOffset[unity_StereoEyeIndex];
+    return uv.xy * scaleOffset.xy + scaleOffset.zw * w;
+}
 
 inline float2 UnityStereoTransformScreenSpaceTex(float2 uv)
 {
@@ -713,7 +724,6 @@ inline float2 UnityStereoClamp(float2 uv, float4 scaleAndOffset)
 }
 #else
 #define TransformStereoScreenSpaceTex(uv, w) uv
-#define UnityStereoScreenSpaceUVAdjust(x, y) x
 #define UnityStereoTransformScreenSpaceTex(uv) uv
 #define UnityStereoClamp(uv, scaleAndOffset) uv
 #endif

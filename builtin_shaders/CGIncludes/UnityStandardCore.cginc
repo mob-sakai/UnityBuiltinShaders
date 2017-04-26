@@ -4,6 +4,8 @@
 #define UNITY_STANDARD_CORE_INCLUDED
 
 #include "UnityCG.cginc"
+#include "UnityShaderVariables.cginc"
+#include "UnityInstancing.cginc"
 #include "UnityStandardConfig.cginc"
 #include "UnityStandardInput.cginc"
 #include "UnityPBSLighting.cginc"

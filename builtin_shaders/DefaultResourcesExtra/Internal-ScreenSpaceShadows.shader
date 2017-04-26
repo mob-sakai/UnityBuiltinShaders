@@ -7,6 +7,11 @@ Properties {
 }
 
 CGINCLUDE
+
+UNITY_DECLARE_SHADOWMAP(_ShadowMapTexture);
+float4 _ShadowMapTexture_TexelSize;
+#define SHADOWMAPSAMPLER_AND_TEXELSIZE_DEFINED
+
 #include "UnityCG.cginc"
 #include "UnityShadowLibrary.cginc"
 
@@ -17,8 +22,8 @@ CGINCLUDE
 // and tries to tilt the PCF kernel along it. However, since we're doing it in screenspace
 // from the depth texture, the derivatives are wrong on edges or intersections of objects,
 // leading to possible shadow artifacts. So it's disabled by default.
-#define UNITY_USE_RECEIVER_PLANE_BIAS 0
-#define UNITY_RECEIVER_PLANE_MIN_FRACTIONAL_ERROR 0.05f
+// See also UnityGetReceiverPlaneDepthBias in UnityShadowLibrary.cginc.
+//#define UNITY_USE_RECEIVER_PLANE_BIAS
 
 
 // Blend between shadow cascades to hide the transition seams?
@@ -89,13 +94,12 @@ v2f vert (appdata v)
     return o;
 }
 
+// ------------------------------------------------------------------
+//  Helpers
+// ------------------------------------------------------------------
 UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
-
 // sizes of cascade projections, relative to first one
 float4 unity_ShadowCascadeScales;
-
-UNITY_DECLARE_SHADOWMAP(_ShadowMapTexture);
-float4 _ShadowMapTexture_TexelSize;
 
 //
 // Keywords based defines
@@ -111,15 +115,6 @@ float4 _ShadowMapTexture_TexelSize;
 #else
     #define GET_SHADOW_COORDINATES(wpos,cascadeWeights) getShadowCoord(wpos,cascadeWeights)
 #endif
-
-// prototypes
-inline float3 computeCameraSpacePosFromDepth(v2f i);
-inline fixed4 getCascadeWeights(float3 wpos, float z);      // calculates the cascade weights based on the world position of the fragment and plane positions
-inline fixed4 getCascadeWeights_splitSpheres(float3 wpos);  // calculates the cascade weights based on world pos and split spheres positions
-inline float4 getShadowCoord_SingleCascade( float4 wpos );  // converts the shadow coordinates for shadow map using the world position of fragment (optimized for single fragment)
-inline float4 getShadowCoord( float4 wpos, fixed4 cascadeWeights );// converts the shadow coordinates for shadow map using the world position of fragment
-half          sampleShadowmap_PCF5x5 (float4 coord);        // samples the shadowmap based on PCF filtering (5x5 kernel)
-half          unity_sampleShadowmap( float4 coord );        // sample shadowmap SM2.0+
 
 /**
  * Gets the cascade weights based on the world position of the fragment.
@@ -176,34 +171,6 @@ inline float4 getShadowCoord_SingleCascade( float4 wpos )
 }
 
 /**
- * Computes the receiver plane depth bias for the given shadow coord in screen space.
- * Inspirations:
- *      http://mynameismjp.wordpress.com/2013/09/10/shadow-maps/
- *      http://amd-dev.wpengine.netdna-cdn.com/wordpress/media/2012/10/Isidoro-ShadowMapping.pdf
- */
-float2 getReceiverPlaneDepthBias (float3 shadowCoord)
-{
-    float2 biasUV;
-    float3 dx = ddx (shadowCoord);
-    float3 dy = ddy (shadowCoord);
-
-    biasUV.x = dy.y * dx.z - dx.y * dy.z;
-    biasUV.y = dx.x * dy.z - dy.x * dx.z;
-    biasUV *= 1.0f / ((dx.x * dy.y) - (dx.y * dy.x));
-    return biasUV;
-}
-
-/**
- * Combines the different components of a shadow coordinate and returns the final coordinate.
- */
-inline float3 combineShadowcoordComponents (float2 baseUV, float2 deltaUV, float depth, float2 receiverPlaneDepthBias)
-{
-    float3 uv = float3( baseUV + deltaUV, depth );
-    uv.z += dot (deltaUV, receiverPlaneDepthBias); // apply the depth bias
-    return uv;
-}
-
-/**
 * Get camera space coord from depth and inv projection matrices
 */
 inline float3 computeCameraSpacePosFromDepthAndInvProjMat(v2f i)
@@ -247,121 +214,7 @@ inline float3 computeCameraSpacePosFromDepthAndVSInfo(v2f i)
     return camPos.xyz;
 }
 
-/**
- * PCF shadowmap filtering based on a 3x3 kernel (optimized with 4 taps)
- *
- * Algorithm: http://the-witness.net/news/2013/09/shadow-mapping-summary-part-1/
- * Implementation example: http://mynameismjp.wordpress.com/2013/09/10/shadow-maps/
- */
-half sampleShadowmap_PCF3x3 (float4 coord, float2 receiverPlaneDepthBias)
-{
-    const float2 offset = float2(0.5,0.5);
-    float2 uv = (coord.xy * _ShadowMapTexture_TexelSize.zw) + offset;
-    float2 base_uv = (floor(uv) - offset) * _ShadowMapTexture_TexelSize.xy;
-    float2 st = frac(uv);
-
-    float2 uw = float2( 3-2*st.x, 1+2*st.x );
-    float2 u = float2( (2-st.x) / uw.x - 1, (st.x)/uw.y + 1 );
-    u *= _ShadowMapTexture_TexelSize.x;
-
-    float2 vw = float2( 3-2*st.y, 1+2*st.y );
-    float2 v = float2( (2-st.y) / vw.x - 1, (st.y)/vw.y + 1);
-    v *= _ShadowMapTexture_TexelSize.y;
-
-    half shadow;
-    half sum = 0;
-
-    sum += uw[0] * vw[0] * UNITY_SAMPLE_SHADOW( _ShadowMapTexture, combineShadowcoordComponents( base_uv, float2(u[0], v[0]), coord.z, receiverPlaneDepthBias) );
-    sum += uw[1] * vw[0] * UNITY_SAMPLE_SHADOW( _ShadowMapTexture, combineShadowcoordComponents( base_uv, float2(u[1], v[0]), coord.z, receiverPlaneDepthBias) );
-    sum += uw[0] * vw[1] * UNITY_SAMPLE_SHADOW( _ShadowMapTexture, combineShadowcoordComponents( base_uv, float2(u[0], v[1]), coord.z, receiverPlaneDepthBias) );
-    sum += uw[1] * vw[1] * UNITY_SAMPLE_SHADOW( _ShadowMapTexture, combineShadowcoordComponents( base_uv, float2(u[1], v[1]), coord.z, receiverPlaneDepthBias) );
-
-    shadow = sum / 16.0f;
-    shadow = lerp (_LightShadowData.r, 1.0f, shadow);
-
-    return shadow;
-}
-
-/**
- * PCF shadowmap filtering based on a 5x5 kernel (optimized with 9 taps)
- *
- * Algorithm: http://the-witness.net/news/2013/09/shadow-mapping-summary-part-1/
- * Implementation example: http://mynameismjp.wordpress.com/2013/09/10/shadow-maps/
- */
-half sampleShadowmap_PCF5x5 (float4 coord, float2 receiverPlaneDepthBias)
-{
-
-#if defined(SHADOWS_NATIVE)
-
-    const float2 offset = float2(0.5,0.5);
-    float2 uv = (coord.xy * _ShadowMapTexture_TexelSize.zw) + offset;
-    float2 base_uv = (floor(uv) - offset) * _ShadowMapTexture_TexelSize.xy;
-    float2 st = frac(uv);
-
-    float3 uw = float3( 4-3*st.x, 7, 1+3*st.x );
-    float3 u = float3( (3-2*st.x) / uw.x - 2, (3+st.x)/uw.y, st.x/uw.z + 2 );
-    u *= _ShadowMapTexture_TexelSize.x;
-
-    float3 vw = float3( 4-3*st.y, 7, 1+3*st.y );
-    float3 v = float3( (3-2*st.y) / vw.x - 2, (3+st.y)/vw.y, st.y/vw.z + 2 );
-    v *= _ShadowMapTexture_TexelSize.y;
-
-    half shadow;
-    half sum = 0.0f;
-
-    half3 accum = uw * vw.x;
-    sum += accum.x * UNITY_SAMPLE_SHADOW( _ShadowMapTexture, combineShadowcoordComponents( base_uv, float2(u.x,v.x), coord.z, receiverPlaneDepthBias) );
-    sum += accum.y * UNITY_SAMPLE_SHADOW( _ShadowMapTexture, combineShadowcoordComponents( base_uv, float2(u.y,v.x), coord.z, receiverPlaneDepthBias) );
-    sum += accum.z * UNITY_SAMPLE_SHADOW( _ShadowMapTexture, combineShadowcoordComponents( base_uv, float2(u.z,v.x), coord.z, receiverPlaneDepthBias) );
-
-    accum = uw * vw.y;
-    sum += accum.x *  UNITY_SAMPLE_SHADOW( _ShadowMapTexture, combineShadowcoordComponents( base_uv, float2(u.x,v.y), coord.z, receiverPlaneDepthBias) );
-    sum += accum.y *  UNITY_SAMPLE_SHADOW( _ShadowMapTexture, combineShadowcoordComponents( base_uv, float2(u.y,v.y), coord.z, receiverPlaneDepthBias) );
-    sum += accum.z *  UNITY_SAMPLE_SHADOW( _ShadowMapTexture, combineShadowcoordComponents( base_uv, float2(u.z,v.y), coord.z, receiverPlaneDepthBias) );
-
-    accum = uw * vw.z;
-    sum += accum.x * UNITY_SAMPLE_SHADOW( _ShadowMapTexture, combineShadowcoordComponents( base_uv, float2(u.x,v.z), coord.z, receiverPlaneDepthBias) );
-    sum += accum.y * UNITY_SAMPLE_SHADOW( _ShadowMapTexture, combineShadowcoordComponents( base_uv, float2(u.y,v.z), coord.z, receiverPlaneDepthBias) );
-    sum += accum.z * UNITY_SAMPLE_SHADOW( _ShadowMapTexture, combineShadowcoordComponents( base_uv, float2(u.z,v.z), coord.z, receiverPlaneDepthBias) );
-
-    shadow = sum / 144.0f;
-
-#else // #if defined(SHADOWS_NATIVE)
-
-    // when we don't have hardware PCF sampling, then the above 5x5 optimized PCF really does not work.
-    // Fallback to a simple 3x3 sampling with averaged results.
-
-    half shadow = 0;
-    float2 base_uv = coord.xy;
-    float2 ts = _ShadowMapTexture_TexelSize.xy;
-    shadow += UNITY_SAMPLE_SHADOW(_ShadowMapTexture, combineShadowcoordComponents(base_uv, float2(-ts.x,-ts.y), coord.z, receiverPlaneDepthBias));
-    shadow += UNITY_SAMPLE_SHADOW(_ShadowMapTexture, combineShadowcoordComponents(base_uv, float2(    0,-ts.y), coord.z, receiverPlaneDepthBias));
-    shadow += UNITY_SAMPLE_SHADOW(_ShadowMapTexture, combineShadowcoordComponents(base_uv, float2( ts.x,-ts.y), coord.z, receiverPlaneDepthBias));
-    shadow += UNITY_SAMPLE_SHADOW(_ShadowMapTexture, combineShadowcoordComponents(base_uv, float2(-ts.x,    0), coord.z, receiverPlaneDepthBias));
-    shadow += UNITY_SAMPLE_SHADOW(_ShadowMapTexture, combineShadowcoordComponents(base_uv, float2(    0,    0), coord.z, receiverPlaneDepthBias));
-    shadow += UNITY_SAMPLE_SHADOW(_ShadowMapTexture, combineShadowcoordComponents(base_uv, float2( ts.x,    0), coord.z, receiverPlaneDepthBias));
-    shadow += UNITY_SAMPLE_SHADOW(_ShadowMapTexture, combineShadowcoordComponents(base_uv, float2(-ts.x, ts.y), coord.z, receiverPlaneDepthBias));
-    shadow += UNITY_SAMPLE_SHADOW(_ShadowMapTexture, combineShadowcoordComponents(base_uv, float2(    0, ts.y), coord.z, receiverPlaneDepthBias));
-    shadow += UNITY_SAMPLE_SHADOW(_ShadowMapTexture, combineShadowcoordComponents(base_uv, float2( ts.x, ts.y), coord.z, receiverPlaneDepthBias));
-    shadow /= 9.0;
-
-#endif // else of #if defined(SHADOWS_NATIVE)
-
-    shadow = lerp (_LightShadowData.r, 1.0f, shadow);
-
-
-    return shadow;
-}
-
-/**
- *  Samples the shadowmap at the given coordinates.
- */
-half unity_sampleShadowmap( float4 coord )
-{
-    half shadow = UNITY_SAMPLE_SHADOW(_ShadowMapTexture,coord);
-    shadow = lerp(_LightShadowData.r, 1.0, shadow);
-    return shadow;
-}
+inline float3 computeCameraSpacePosFromDepth(v2f i);
 
 /**
  *  Hard shadow
@@ -374,8 +227,13 @@ fixed4 frag_hard (v2f i) : SV_Target
 
     float4 wpos = mul (unity_CameraToWorld, float4(vpos,1));
 
+
     fixed4 cascadeWeights = GET_CASCADE_WEIGHTS (wpos, vpos.z);
-    half shadow = unity_sampleShadowmap( GET_SHADOW_COORDINATES(wpos, cascadeWeights) );
+    float4 shadowCoord = GET_SHADOW_COORDINATES(wpos, cascadeWeights);
+
+    //1 tap hard shadow
+    fixed shadow = UNITY_SAMPLE_SHADOW(_ShadowMapTexture, shadowCoord);
+    shadow = lerp(_LightShadowData.r, 1.0, shadow);
 
     fixed4 res = shadow;
     return res;
@@ -384,7 +242,7 @@ fixed4 frag_hard (v2f i) : SV_Target
 /**
  *  Soft Shadow (SM 3.0)
  */
-fixed4 frag_pcf5x5(v2f i) : SV_Target
+fixed4 frag_pcfSoft(v2f i) : SV_Target
 {
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i); // required for sampling the correct slice of the shadow map render texture array
 
@@ -395,30 +253,23 @@ fixed4 frag_pcf5x5(v2f i) : SV_Target
     fixed4 cascadeWeights = GET_CASCADE_WEIGHTS(wpos, vpos.z);
     float4 coord = GET_SHADOW_COORDINATES(wpos, cascadeWeights);
 
-    float2 receiverPlaneDepthBiasCascade0 = 0.0;
-    float2 receiverPlaneDepthBias = 0.0;
-#if UNITY_USE_RECEIVER_PLANE_BIAS
+    float3 receiverPlaneDepthBias = 0.0;
+#ifdef UNITY_USE_RECEIVER_PLANE_BIAS
     // Reveiver plane depth bias: need to calculate it based on shadow coordinate
     // as it would be in first cascade; otherwise derivatives
     // at cascade boundaries will be all wrong. So compute
     // it from cascade 0 UV, and scale based on which cascade we're in.
-    //
     float3 coordCascade0 = getShadowCoord_SingleCascade(wpos);
-    receiverPlaneDepthBiasCascade0 = getReceiverPlaneDepthBias(coordCascade0.xyz);
     float biasMultiply = dot(cascadeWeights,unity_ShadowCascadeScales);
-
-    receiverPlaneDepthBias = receiverPlaneDepthBiasCascade0 * biasMultiply;
-
-    // Static depth biasing to make up for incorrect fractional
-    // sampling on the shadow map grid; from "A Sampling of Shadow Techniques"
-    // (http://mynameismjp.wordpress.com/2013/09/10/shadow-maps/)
-    float fractionalSamplingError = 2 * dot(_ShadowMapTexture_TexelSize.xy, abs(receiverPlaneDepthBias));
-    coord.z -= min(fractionalSamplingError, UNITY_RECEIVER_PLANE_MIN_FRACTIONAL_ERROR);
+    receiverPlaneDepthBias = UnityGetReceiverPlaneDepthBias(coordCascade0.xyz, biasMultiply);
 #endif
 
-
-    half shadow = sampleShadowmap_PCF5x5(coord, receiverPlaneDepthBias);
-
+#if defined(SHADER_API_MOBILE)
+    half shadow = UnitySampleShadowmap_PCF5x5(coord, receiverPlaneDepthBias);
+#else
+    half shadow = UnitySampleShadowmap_PCF7x7(coord, receiverPlaneDepthBias);
+#endif
+    shadow = lerp(_LightShadowData.r, 1.0f, shadow);
 
     // Blend between shadow cascades if enabled
     //
@@ -437,15 +288,13 @@ fixed4 frag_pcf5x5(v2f i) : SV_Target
             cascadeWeights = fixed4(0, cascadeWeights.xyz);
             coord = GET_SHADOW_COORDINATES(wpos, cascadeWeights);
 
-#if UNITY_USE_RECEIVER_PLANE_BIAS
+#ifdef UNITY_USE_RECEIVER_PLANE_BIAS
             biasMultiply = dot(cascadeWeights,unity_ShadowCascadeScales);
-            receiverPlaneDepthBias = receiverPlaneDepthBiasCascade0 * biasMultiply;
-            fractionalSamplingError = 2 * dot(_ShadowMapTexture_TexelSize.xy, abs(receiverPlaneDepthBias));
-            coord.z -= min(fractionalSamplingError, UNITY_RECEIVER_PLANE_MIN_FRACTIONAL_ERROR);
+            receiverPlaneDepthBias = UnityGetReceiverPlaneDepthBias(coordCascade0.xyz, biasMultiply);
 #endif
 
-            half shadowNextCascade = sampleShadowmap_PCF3x3(coord, receiverPlaneDepthBias);
-
+            half shadowNextCascade = UnitySampleShadowmap_PCF3x3(coord, receiverPlaneDepthBias);
+            shadowNextCascade = lerp(_LightShadowData.r, 1.0f, shadowNextCascade);
             shadow = lerp(shadow, shadowNextCascade, alpha);
         }
 #endif
@@ -501,17 +350,17 @@ SubShader {
 }
 
 // ----------------------------------------------------------------------------------------
-// Subshader that does PCF 5x5 filtering while collecting shadows.
+// Subshader that does soft PCF filtering while collecting shadows.
 // Requires SM3 GPU.
 
 Subshader {
-    Tags {"ShadowmapFilter" = "PCF_5x5"}
+    Tags {"ShadowmapFilter" = "PCF_SOFT"}
     Pass {
         ZWrite Off ZTest Always Cull Off
 
         CGPROGRAM
         #pragma vertex vert
-        #pragma fragment frag_pcf5x5
+        #pragma fragment frag_pcfSoft
         #pragma multi_compile_shadowcollector
         #pragma target 3.0
 
@@ -524,18 +373,18 @@ Subshader {
 }
 
 // ----------------------------------------------------------------------------------------
-// Subshader that does PCF 5x5 filtering while collecting shadows.
+// Subshader that does soft PCF filtering while collecting shadows.
 // Requires SM3 GPU.
 // This version does inv projection at the PS level, slower and less precise however more general.
 
 Subshader{
-    Tags{ "ShadowmapFilter" = "PCF_5x5_FORCE_INV_PROJECTION_IN_PS" }
+    Tags{ "ShadowmapFilter" = "PCF_SOFT_FORCE_INV_PROJECTION_IN_PS" }
     Pass{
         ZWrite Off ZTest Always Cull Off
 
         CGPROGRAM
         #pragma vertex vert
-        #pragma fragment frag_pcf5x5
+        #pragma fragment frag_pcfSoft
         #pragma multi_compile_shadowcollector
         #pragma target 3.0
 

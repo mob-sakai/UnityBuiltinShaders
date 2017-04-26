@@ -79,17 +79,17 @@ Shader "UI/Default"
             fixed4 _TextureSampleAdd;
             float4 _ClipRect;
 
-            v2f vert(appdata_t IN)
+            v2f vert(appdata_t v)
             {
                 v2f OUT;
-                UNITY_SETUP_INSTANCE_ID(IN);
+                UNITY_SETUP_INSTANCE_ID(v);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(OUT);
-                OUT.worldPosition = IN.vertex;
+                OUT.worldPosition = v.vertex;
                 OUT.vertex = UnityObjectToClipPos(OUT.worldPosition);
 
-                OUT.texcoord = IN.texcoord;
+                OUT.texcoord = v.texcoord;
 
-                OUT.color = IN.color * _Color;
+                OUT.color = v.color * _Color;
                 return OUT;
             }
 
