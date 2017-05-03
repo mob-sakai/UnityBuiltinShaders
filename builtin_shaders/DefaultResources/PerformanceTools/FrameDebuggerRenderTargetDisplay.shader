@@ -7,6 +7,7 @@ Shader "Hidden/FrameDebuggerRenderTargetDisplay" {
 
     CGINCLUDE
     #include "UnityCG.cginc"
+    #include "HLSLSupport.cginc"
     struct appdata {
         float4 vertex : POSITION;
         float3 uv : TEXCOORD0;
@@ -58,7 +59,7 @@ Shader "Hidden/FrameDebuggerRenderTargetDisplay" {
             #pragma vertex vert
             #pragma fragment frag
 
-            sampler2D _MainTex;
+            sampler2D_float _MainTex;
 
             fixed4 frag (v2f i) : SV_Target {
                 half4 tex = tex2D (_MainTex, i.uv.xy);
@@ -73,11 +74,27 @@ Shader "Hidden/FrameDebuggerRenderTargetDisplay" {
             #pragma vertex vert
             #pragma fragment frag
 
-            samplerCUBE _MainTex;
+            samplerCUBE_float _MainTex;
 
             fixed4 frag (v2f i) : SV_Target {
                 half4 tex = texCUBE (_MainTex, i.uv.xyz);
                 return ProcessColor (tex);
+            }
+            ENDCG
+        }
+
+        // 2D array texture
+        Pass {
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma target 3.5
+
+            UNITY_DECLARE_TEX2DARRAY(_MainTex);
+
+            fixed4 frag(v2f i) : SV_Target{
+                half4 tex = UNITY_SAMPLE_TEX2DARRAY(_MainTex, i.uv.xyz);
+                return ProcessColor(tex);
             }
             ENDCG
         }

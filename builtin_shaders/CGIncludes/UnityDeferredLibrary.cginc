@@ -63,7 +63,14 @@ sampler2D _CameraGBufferTexture4;
 // --------------------------------------------------------
 // Shadow/fade helpers
 
+// Receiver plane depth bias create artifacts when depth is retrieved from
+// the depth buffer. see UnityGetReceiverPlaneDepthBias in UnityShadowLibrary.cginc
+#ifdef UNITY_USE_RECEIVER_PLANE_BIAS
+    #undef UNITY_USE_RECEIVER_PLANE_BIAS
+#endif
+
 #include "UnityShadowLibrary.cginc"
+
 
 //Note :
 // SHADOWS_SHADOWMASK + LIGHTMAP_SHADOW_MIXING -> ShadowMask mode

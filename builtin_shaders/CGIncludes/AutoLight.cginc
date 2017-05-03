@@ -6,12 +6,6 @@
 #include "HLSLSupport.cginc"
 #include "UnityShadowLibrary.cginc"
 
-#define unityShadowCoord float
-#define unityShadowCoord2 float2
-#define unityShadowCoord3 float3
-#define unityShadowCoord4 float4
-#define unityShadowCoord4x4 float4x4
-
 // ----------------
 //  Shadow helpers
 // ----------------

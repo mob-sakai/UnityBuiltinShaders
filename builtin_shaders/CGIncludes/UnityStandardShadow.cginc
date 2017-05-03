@@ -8,6 +8,8 @@
 
 
 #include "UnityCG.cginc"
+#include "UnityShaderVariables.cginc"
+#include "UnityInstancing.cginc"
 #include "UnityStandardConfig.cginc"
 #include "UnityStandardUtils.cginc"
 
