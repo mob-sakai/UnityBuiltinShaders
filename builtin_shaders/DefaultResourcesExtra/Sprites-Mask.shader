@@ -6,7 +6,7 @@ Shader "Sprites/Mask"
     {
         [PerRendererData] _MainTex ("Sprite Texture", 2D) = "white" {}
         [PerRendererData] _AlphaTex ("External Alpha", 2D) = "white" {}
-        [HideInInspector] _MaskingAlphaCutoff ("Mask alpha cutoff", Range(0.0, 1.0)) = 0.0
+        [HideInInspector] _Cutoff ("Mask alpha cutoff", Range(0.0, 1.0)) = 0.0
         _Color ("Tint", Color) = (1,1,1,0.2)
         [PerRendererData] _EnableExternalAlpha ("Enable External Alpha", Float) = 0
         [MaterialToggle] PixelSnap ("Pixel snap", Float) = 0
@@ -39,7 +39,7 @@ Shader "Sprites/Mask"
             #include "UnitySprites.cginc"
 
             // alpha below which a mask should discard a pixel, thereby preventing the stencil buffer from being marked with the Mask's presence
-            fixed _MaskingAlphaCutoff;
+            fixed _Cutoff;
 
             struct appdata_masking
             {
@@ -75,7 +75,7 @@ Shader "Sprites/Mask"
             {
                 fixed4 c = SampleSpriteTexture(IN.uv);
                 // for masks: discard pixel if alpha falls below MaskingCutoff
-                clip (c.a - _MaskingAlphaCutoff);
+                clip (c.a - _Cutoff);
                 return _Color;
             }
         ENDCG
