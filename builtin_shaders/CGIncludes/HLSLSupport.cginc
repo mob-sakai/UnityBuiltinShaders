@@ -624,7 +624,11 @@
 #endif
 
 #if defined(SHADER_API_D3D11) || defined(SHADER_API_PSSL) || defined(SHADER_API_XBOXONE) || defined(SHADER_API_METAL) || defined(SHADER_API_VULKAN)
+// D3D style platforms where clip space z is [0, 1].
 #define UNITY_REVERSED_Z 1
+#elif defined(SHADER_API_SWITCH)
+// GL style platforms where clip space z is [-1, 1].
+#define UNITY_REVERSED_Z 2
 #endif
 
 #if defined(UNITY_REVERSED_Z)
