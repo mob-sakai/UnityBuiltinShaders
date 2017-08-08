@@ -531,7 +531,8 @@ inline half3 DecodeLightmapRGBM (half4 data, half4 decodeInstructions)
 // Decodes doubleLDR encoded lightmaps.
 inline half3 DecodeLightmapDoubleLDR( fixed4 color )
 {
-    return 2.0 * color.rgb;
+    float multiplier = IsGammaSpace() ? 2.0f : GammaToLinearSpace(2.0f).x;
+    return multiplier * color.rgb;
 }
 
 inline half3 DecodeLightmap( fixed4 color, half4 decodeInstructions)
