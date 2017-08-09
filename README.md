@@ -1,4 +1,4 @@
 Unity Built-in Shaders
 ====
 
-2017.3.0a2 ()
+2017.3.0a3 ()
