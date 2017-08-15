@@ -82,6 +82,10 @@ Shader "Hidden/FrameDebuggerRenderTargetDisplay" {
             }
             ENDCG
         }
+    }
+
+    SubShader{
+        Cull Off ZWrite Off ZTest Always
 
         // 2D array texture
         Pass {
@@ -99,5 +103,5 @@ Shader "Hidden/FrameDebuggerRenderTargetDisplay" {
             ENDCG
         }
     }
-    FallBack off
+    Fallback Off
 }
