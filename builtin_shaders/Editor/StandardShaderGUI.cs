@@ -54,7 +54,6 @@ namespace UnityEditor
             public static string forwardText = "Forward Rendering Options";
             public static string renderingMode = "Rendering Mode";
             public static string advancedText = "Advanced Options";
-            public static GUIContent emissiveWarning = new GUIContent("Emissive value is animated but the material has not been configured to support emissive. Please make sure the material itself has some amount of emissive.");
             public static readonly string[] blendNames = Enum.GetNames(typeof(BlendMode));
         }
 
@@ -87,7 +86,8 @@ namespace UnityEditor
 
         MaterialEditor m_MaterialEditor;
         WorkflowMode m_WorkflowMode = WorkflowMode.Specular;
-        ColorPickerHDRConfig m_ColorPickerHDRConfig = new ColorPickerHDRConfig(0f, 99f, 1 / 99f, 3f);
+        private const float kMaxfp16 = 65536f; // Clamp to a value that fits into fp16.
+        ColorPickerHDRConfig m_ColorPickerHDRConfig = new ColorPickerHDRConfig(0f, kMaxfp16, 1 / kMaxfp16, 3f);
 
         bool m_FirstTimeApply = true;
 
@@ -159,7 +159,7 @@ namespace UnityEditor
                 GUILayout.Label(Styles.primaryMapsText, EditorStyles.boldLabel);
                 DoAlbedoArea(material);
                 DoSpecularMetallicArea();
-                m_MaterialEditor.TexturePropertySingleLine(Styles.normalMapText, bumpMap, bumpMap.textureValue != null ? bumpScale : null);
+                DoNormalArea();
                 m_MaterialEditor.TexturePropertySingleLine(Styles.heightMapText, heightMap, heightMap.textureValue != null ? heigtMapScale : null);
                 m_MaterialEditor.TexturePropertySingleLine(Styles.occlusionText, occlusionMap, occlusionMap.textureValue != null ? occlusionStrength : null);
                 m_MaterialEditor.TexturePropertySingleLine(Styles.detailMaskText, detailMask);
@@ -196,6 +196,7 @@ namespace UnityEditor
             // NB renderqueue editor is not shown on purpose: we want to override it based on blend mode
             GUILayout.Label(Styles.advancedText, EditorStyles.boldLabel);
             m_MaterialEditor.EnableInstancingField();
+            m_MaterialEditor.DoubleSidedGIField();
         }
 
         internal void DetermineWorkflow(MaterialProperty[] props)
@@ -256,6 +257,18 @@ namespace UnityEditor
             }
 
             EditorGUI.showMixedValue = false;
+        }
+
+        void DoNormalArea()
+        {
+            m_MaterialEditor.TexturePropertySingleLine(Styles.normalMapText, bumpMap, bumpMap.textureValue != null ? bumpScale : null);
+            if (bumpScale.floatValue != 1 && UnityEditorInternal.InternalEditorUtility.IsMobilePlatform(EditorUserBuildSettings.activeBuildTarget))
+                if (m_MaterialEditor.HelpBoxWithButton(
+                        EditorGUIUtility.TextContent("Bump scale is not supported on mobile platforms"),
+                        EditorGUIUtility.TextContent("Fix Now")))
+                {
+                    bumpScale.floatValue = 1;
+                }
         }
 
         void DoAlbedoArea(Material material)

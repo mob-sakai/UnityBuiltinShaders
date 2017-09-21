@@ -97,33 +97,29 @@ half3 LerpWhiteTo(half3 b, half t)
     return half3(oneMinusT, oneMinusT, oneMinusT) + b * t;
 }
 
-half3 UnpackScaleNormal(half4 packednormal, half bumpScale)
+half3 UnpackScaleNormalDXT5nm(half4 packednormal, half bumpScale)
 {
     half3 normal;
-    #if defined(UNITY_NO_DXT5nm)
-        normal = packednormal.xyz * 2 - 1;
-        #if (SHADER_TARGET >= 30)
-            // SM2.0: instruction count limitation
-            // SM2.0: normal scaler is not supported
-            normal.xy *= bumpScale;
-        #endif
-        return normal;
-    #else
-        normal.xy = (packednormal.wy * 2 - 1);
-        #if (SHADER_TARGET >= 30)
-            // SM2.0: instruction count limitation
-            // SM2.0: normal scaler is not supported
-            normal.xy *= bumpScale;
-        #endif
-        normal.z = sqrt(1.0 - saturate(dot(normal.xy, normal.xy)));
-        return normal;
+    normal.xy = (packednormal.wy * 2 - 1);
+    #if (SHADER_TARGET >= 30)
+        // SM2.0: instruction count limitation
+        // SM2.0: normal scaler is not supported
+        normal.xy *= bumpScale;
     #endif
+    normal.z = sqrt(1.0 - saturate(dot(normal.xy, normal.xy)));
+    return normal;
 }
 
 half3 UnpackScaleNormalRGorAG(half4 packednormal, half bumpScale)
 {
     #if defined(UNITY_NO_DXT5nm)
-        return packednormal.xyz * 2 - 1;
+        half3 normal = packednormal.xyz * 2 - 1;
+        #if (SHADER_TARGET >= 30)
+            // SM2.0: instruction count limitation
+            // SM2.0: normal scaler is not supported
+            normal.xy *= bumpScale;
+        #endif
+        return normal;
     #else
         // This do the trick
         packednormal.x *= packednormal.w;
@@ -138,6 +134,11 @@ half3 UnpackScaleNormalRGorAG(half4 packednormal, half bumpScale)
         normal.z = sqrt(1.0 - saturate(dot(normal.xy, normal.xy)));
         return normal;
     #endif
+}
+
+half3 UnpackScaleNormal(half4 packednormal, half bumpScale)
+{
+    return UnpackScaleNormalRGorAG(packednormal, bumpScale);
 }
 
 half3 BlendNormals(half3 n1, half3 n2)
@@ -182,11 +183,25 @@ half3 ShadeSHPerPixel (half3 normal, half3 ambient, float3 worldPos)
 
     #if UNITY_SAMPLE_FULL_SH_PER_PIXEL
         // Completely per-pixel
-        ambient_contrib = ShadeSH9 (half4(normal, 1.0));
-        ambient += max(half3(0, 0, 0), ambient_contrib);
+        #if UNITY_LIGHT_PROBE_PROXY_VOLUME
+            if (unity_ProbeVolumeParams.x == 1.0)
+                ambient_contrib = SHEvalLinearL0L1_SampleProbeVolume(half4(normal, 1.0), worldPos);
+            else
+                ambient_contrib = SHEvalLinearL0L1(half4(normal, 1.0));
+        #else
+            ambient_contrib = SHEvalLinearL0L1(half4(normal, 1.0));
+        #endif
+
+            ambient_contrib += SHEvalLinearL2(half4(normal, 1.0));
+
+            ambient += max(half3(0, 0, 0), ambient_contrib);
+
+        #ifdef UNITY_COLORSPACE_GAMMA
+            ambient = LinearToGammaSpace(ambient);
+        #endif
     #elif (SHADER_TARGET < 30) || UNITY_STANDARD_SIMPLE
         // Completely per-vertex
-        // nothing to do here
+        // nothing to do here. Gamma conversion on ambient from SH takes place in the vertex shader, see ShadeSHPerVertex.
     #else
         // L2 per-vertex, L0..L1 & gamma-correction per-pixel
         // Ambient in this case is expected to be always Linear, see ShadeSHPerVertex()

@@ -36,6 +36,11 @@
 #define USING_LIGHT_MULTI_COMPILE
 #endif
 
+#if (defined(SHADER_API_D3D11) && !defined(SHADER_API_XBOXONE))
+// Real-support for depth-format cube shadow map.
+#define SHADOWS_CUBE_IN_DEPTH_TEX
+#endif
+
 #define SCALED_NORMAL v.normal
 
 
@@ -44,9 +49,11 @@
 #define EMISSIVE_RGBM_SCALE 97.0
 
 // Should SH (light probe / ambient) calculations be performed?
-// - Presence of *either* of static or dynamic lightmaps means that diffuse indirect ambient is already in them, so no need for SH.
+// - When both static and dynamic lightmaps are available, no SH evaluation is performed
+// - When static and dynamic lightmaps are not available, SH evaluation is always performed
+// - For low level LODs, static lightmap and real-time GI from light probes can be combined together
 // - Passes that don't do ambient (additive, shadowcaster etc.) should not do SH either.
-#define UNITY_SHOULD_SAMPLE_SH (!defined(LIGHTMAP_ON) && !defined(DYNAMICLIGHTMAP_ON) && !defined(UNITY_PASS_FORWARDADD) && !defined(UNITY_PASS_PREPASSBASE) && !defined(UNITY_PASS_SHADOWCASTER) && !defined(UNITY_PASS_META))
+#define UNITY_SHOULD_SAMPLE_SH (defined(LIGHTPROBE_SH) && !defined(UNITY_PASS_FORWARDADD) && !defined(UNITY_PASS_PREPASSBASE) && !defined(UNITY_PASS_SHADOWCASTER) && !defined(UNITY_PASS_META))
 
 struct appdata_base {
     float4 vertex : POSITION;
@@ -529,17 +536,20 @@ inline half3 DecodeLightmapRGBM (half4 data, half4 decodeInstructions)
 }
 
 // Decodes doubleLDR encoded lightmaps.
-inline half3 DecodeLightmapDoubleLDR( fixed4 color )
+inline half3 DecodeLightmapDoubleLDR( fixed4 color, half4 decodeInstructions)
 {
-    return 2.0 * color.rgb;
+    // decodeInstructions.x contains 2.0 when gamma color space is used or pow(2.0, 2.2) = 4.59 when linear color space is used on mobile platforms
+    return decodeInstructions.x * color.rgb;
 }
 
 inline half3 DecodeLightmap( fixed4 color, half4 decodeInstructions)
 {
-#if defined(UNITY_NO_RGBM)
-    return DecodeLightmapDoubleLDR( color );
-#else
-    return DecodeLightmapRGBM( color, decodeInstructions );
+#if defined(UNITY_LIGHTMAP_DLDR_ENCODING)
+    return DecodeLightmapDoubleLDR(color, decodeInstructions);
+#elif defined(UNITY_LIGHTMAP_RGBM_ENCODING)
+    return DecodeLightmapRGBM(color, decodeInstructions);
+#else //defined(UNITY_LIGHTMAP_FULL_HDR)
+    return color.rgb;
 #endif
 }
 
@@ -658,6 +668,7 @@ inline fixed3 UnpackNormalDXT5nm (fixed4 packednormal)
 }
 
 // Unpack normal as DXT5nm (1, y, 1, x) or BC5 (x, y, 0, 1)
+// Note neutral texture like "bump" is (0, 0, 1, 1) to work with both plain RGB normal and DXT5nm/BC5
 fixed3 UnpackNormalmapRGorAG(fixed4 packednormal)
 {
     // This do the trick
@@ -673,7 +684,7 @@ inline fixed3 UnpackNormal(fixed4 packednormal)
 #if defined(UNITY_NO_DXT5nm)
     return packednormal.xyz * 2 - 1;
 #else
-    return UnpackNormalDXT5nm(packednormal);
+    return UnpackNormalmapRGorAG(packednormal);
 #endif
 }
 
@@ -741,12 +752,15 @@ struct appdata_img
 {
     float4 vertex : POSITION;
     half2 texcoord : TEXCOORD0;
+    UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
 struct v2f_img
 {
     float4 pos : SV_POSITION;
     half2 uv : TEXCOORD0;
+    UNITY_VERTEX_INPUT_INSTANCE_ID
+    UNITY_VERTEX_OUTPUT_STEREO
 };
 
 float2 MultiplyUV (float4x4 mat, float2 inUV) {
@@ -758,6 +772,10 @@ float2 MultiplyUV (float4x4 mat, float2 inUV) {
 v2f_img vert_img( appdata_img v )
 {
     v2f_img o;
+    UNITY_INITIALIZE_OUTPUT(v2f_img, o);
+    UNITY_SETUP_INSTANCE_ID(v);
+    UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
+
     o.pos = UnityObjectToClipPos (v.vertex);
     o.uv = v.texcoord;
     return o;
@@ -869,9 +887,15 @@ float4 UnityClipSpaceShadowCasterPos(float3 vertex, float3 normal)
 float4 UnityApplyLinearShadowBias(float4 clipPos)
 {
 #if defined(UNITY_REVERSED_Z)
+
+    // For point lights that support depth cube map, the bias is applied in the fragment shader sampling the shadow map.
+    // This is because the legacy behaviour for point light shadow map cannot be implemented by offseting the vertex position
+    // in the vertex shader generating the shadow map.
+#   if !(defined(SHADOWS_CUBE) && defined(SHADOWS_CUBE_IN_DEPTH_TEX))
     // We use max/min instead of clamp to ensure proper handling of the rare case
     // where both numerator and denominator are zero and the fraction becomes NaN.
     clipPos.z += max(-1, min(unity_LightShadowBias.x / clipPos.w, 0));
+#   endif
     float clamped = min(clipPos.z, clipPos.w*UNITY_NEAR_CLIP_VALUE);
 #else
     clipPos.z += saturate(unity_LightShadowBias.x/clipPos.w);
@@ -882,12 +906,13 @@ float4 UnityApplyLinearShadowBias(float4 clipPos)
 }
 
 
-#ifdef SHADOWS_CUBE
+#if defined(SHADOWS_CUBE) && !defined(SHADOWS_CUBE_IN_DEPTH_TEX)
     // Rendering into point light (cubemap) shadows
     #define V2F_SHADOW_CASTER_NOPOS float3 vec : TEXCOORD0;
     #define TRANSFER_SHADOW_CASTER_NOPOS_LEGACY(o,opos) o.vec = mul(unity_ObjectToWorld, v.vertex).xyz - _LightPositionRange.xyz; opos = UnityObjectToClipPos(v.vertex);
     #define TRANSFER_SHADOW_CASTER_NOPOS(o,opos) o.vec = mul(unity_ObjectToWorld, v.vertex).xyz - _LightPositionRange.xyz; opos = UnityObjectToClipPos(v.vertex);
     #define SHADOW_CASTER_FRAGMENT(i) return UnityEncodeCubeShadowDepth ((length(i.vec) + unity_LightShadowBias.x) * _LightPositionRange.w);
+
 #else
     // Rendering into directional or spot light shadows
     #define V2F_SHADOW_CASTER_NOPOS
@@ -940,14 +965,19 @@ float4 UnityApplyLinearShadowBias(float4 clipPos)
 #endif
 
 #if defined(UNITY_REVERSED_Z)
-    //D3d with reversed Z => z clip range is [near, 0] -> remapping to [0, far]
-    //max is required to protect ourselves from near plane not being correct/meaningfull in case of oblique matrices.
-    #define UNITY_Z_0_FAR_FROM_CLIPSPACE(coord) max(((1.0-(coord)/_ProjectionParams.y)*_ProjectionParams.z),0)
+    #if UNITY_REVERSED_Z == 1
+        //D3d with reversed Z => z clip range is [near, 0] -> remapping to [0, far]
+        //max is required to protect ourselves from near plane not being correct/meaningfull in case of oblique matrices.
+        #define UNITY_Z_0_FAR_FROM_CLIPSPACE(coord) max(((1.0-(coord)/_ProjectionParams.y)*_ProjectionParams.z),0)
+    #else
+        //GL with reversed z => z clip range is [near, -far] -> should remap in theory but dont do it in practice to save some perf (range is close enough)
+        #define UNITY_Z_0_FAR_FROM_CLIPSPACE(coord) max(-(coord), 0)
+    #endif
 #elif UNITY_UV_STARTS_AT_TOP
     //D3d without reversed z => z clip range is [0, far] -> nothing to do
     #define UNITY_Z_0_FAR_FROM_CLIPSPACE(coord) (coord)
 #else
-    //Opengl => z clip range is [-near, far] -> should remap in theory but dont do it in practice to save some perf (range is close enought)
+    //Opengl => z clip range is [-near, far] -> should remap in theory but dont do it in practice to save some perf (range is close enough)
     #define UNITY_Z_0_FAR_FROM_CLIPSPACE(coord) (coord)
 #endif
 

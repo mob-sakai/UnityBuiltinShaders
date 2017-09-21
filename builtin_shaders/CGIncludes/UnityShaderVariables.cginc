@@ -32,11 +32,6 @@
 #define UNITY_MATRIX_VP unity_MatrixVP
 #define UNITY_MATRIX_M unity_ObjectToWorld
 
-#define UNITY_MATRIX_MVP mul(unity_MatrixVP, unity_ObjectToWorld)
-#define UNITY_MATRIX_MV mul(unity_MatrixV, unity_ObjectToWorld)
-#define UNITY_MATRIX_T_MV transpose(UNITY_MATRIX_MV)
-#define UNITY_MATRIX_IT_MV transpose(mul(unity_WorldToObject, unity_MatrixInvV))
-
 #define UNITY_LIGHTMODEL_AMBIENT (glstate_lightmodel_ambient * 2)
 
 // ----------------------------------------------------------------------------
@@ -112,6 +107,7 @@ CBUFFER_START(UnityLighting)
     #endif
 
     float4 _LightPositionRange; // xyz = pos, w = 1/range
+    float4 _LightProjectionParams; // for point light projection: x = zfar / (znear - zfar), y = (znear * zfar) / (znear - zfar), z=shadow bias, w=shadow scale bias
 
     float4 unity_4LightPosX0;
     float4 unity_4LightPosY0;
@@ -171,7 +167,7 @@ CBUFFER_START(UnityPerDraw)
 CBUFFER_END
 
 #if defined(USING_STEREO_MATRICES)
-CBUFFER_START(UnityStereoGlobals)
+GLOBAL_CBUFFER_START(UnityStereoGlobals)
     float4x4 unity_StereoMatrixP[2];
     float4x4 unity_StereoMatrixV[2];
     float4x4 unity_StereoMatrixInvV[2];
@@ -184,13 +180,13 @@ CBUFFER_START(UnityStereoGlobals)
 
     float3 unity_StereoWorldSpaceCameraPos[2];
     float4 unity_StereoScaleOffset[2];
-CBUFFER_END
+GLOBAL_CBUFFER_END
 #endif
 
 #if defined(USING_STEREO_MATRICES) && defined(UNITY_STEREO_MULTIVIEW_ENABLED)
-CBUFFER_START(UnityStereoEyeIndices)
+GLOBAL_CBUFFER_START(UnityStereoEyeIndices)
     float4 unity_StereoEyeIndices[2];
-CBUFFER_END
+GLOBAL_CBUFFER_END
 #endif
 
 #if defined(UNITY_STEREO_MULTIVIEW_ENABLED) && defined(SHADER_STAGE_VERTEX)
@@ -199,9 +195,9 @@ CBUFFER_END
 #elif defined(UNITY_STEREO_INSTANCING_ENABLED) || defined(UNITY_STEREO_MULTIVIEW_ENABLED)
     static uint unity_StereoEyeIndex;
 #elif defined(UNITY_SINGLE_PASS_STEREO)
-    CBUFFER_START(UnityStereoEyeIndex)
+    GLOBAL_CBUFFER_START(UnityStereoEyeIndex)
         int unity_StereoEyeIndex;
-    CBUFFER_END
+    GLOBAL_CBUFFER_END
 #endif
 
 CBUFFER_START(UnityPerDrawRare)
@@ -224,7 +220,6 @@ CBUFFER_START(UnityPerFrame)
     float4x4 unity_MatrixV;
     float4x4 unity_MatrixInvV;
     float4x4 unity_MatrixVP;
-    float4 unity_StereoScaleOffset;
     int unity_StereoEyeIndex;
 #endif
 
@@ -294,12 +289,19 @@ CBUFFER_END
 // ----------------------------------------------------------------------------
 // Light Probe Proxy Volume
 
-#ifndef UNITY_LIGHT_PROBE_PROXY_VOLUME
+// UNITY_LIGHT_PROBE_PROXY_VOLUME is used as a shader keyword coming from tier settings and may be also disabled with nolppv pragma.
+// We need to convert it to 0/1 and doing a second check for safety.
+#ifdef UNITY_LIGHT_PROBE_PROXY_VOLUME
+    #undef UNITY_LIGHT_PROBE_PROXY_VOLUME
     // Requires quite modern graphics support (3D float textures with filtering)
     // Note: Keep this in synch with the list from LightProbeProxyVolume::HasHardwareSupport && SurfaceCompiler::IsLPPVAvailableForAnyTargetPlatform
-    #if defined (SHADER_API_D3D11) || defined (SHADER_API_D3D12) || defined (SHADER_API_GLCORE) || defined (SHADER_API_XBOXONE) || defined (SHADER_API_PSSL) || defined(SHADER_API_VULKAN) || defined(SHADER_API_METAL)
+    #if !defined(UNITY_NO_LPPV) && (defined (SHADER_API_D3D11) || defined (SHADER_API_D3D12) || defined (SHADER_API_GLCORE) || defined (SHADER_API_XBOXONE) || defined (SHADER_API_PSSL) || defined(SHADER_API_VULKAN) || defined(SHADER_API_METAL))
         #define UNITY_LIGHT_PROBE_PROXY_VOLUME 1
+    #else
+        #define UNITY_LIGHT_PROBE_PROXY_VOLUME 0
     #endif
+#else
+    #define UNITY_LIGHT_PROBE_PROXY_VOLUME 0
 #endif
 
 #if UNITY_LIGHT_PROBE_PROXY_VOLUME
@@ -317,6 +319,15 @@ CBUFFER_END
     CBUFFER_END
 #endif
 
+static float4x4 unity_MatrixMVP = mul(unity_MatrixVP, unity_ObjectToWorld);
+static float4x4 unity_MatrixMV = mul(unity_MatrixV, unity_ObjectToWorld);
+static float4x4 unity_MatrixTMV = transpose(unity_MatrixMV);
+static float4x4 unity_MatrixITMV = transpose(mul(unity_WorldToObject, unity_MatrixInvV));
+// make them macros so that they can be redefined in UnityInstancing.cginc
+#define UNITY_MATRIX_MVP    unity_MatrixMVP
+#define UNITY_MATRIX_MV     unity_MatrixMV
+#define UNITY_MATRIX_T_MV   unity_MatrixTMV
+#define UNITY_MATRIX_IT_MV  unity_MatrixITMV
 
 // ----------------------------------------------------------------------------
 //  Deprecated
@@ -326,6 +337,5 @@ CBUFFER_END
 #define UNITY_MATRIX_TEXTURE1 float4x4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1)
 #define UNITY_MATRIX_TEXTURE2 float4x4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1)
 #define UNITY_MATRIX_TEXTURE3 float4x4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1)
-
 
 #endif
