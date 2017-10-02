@@ -763,6 +763,7 @@ float2 MultiplyUV (float4x4 mat, float2 inUV) {
 v2f_img vert_img( appdata_img v )
 {
     v2f_img o;
+    UNITY_INITIALIZE_OUTPUT(v2f_img, o);
     UNITY_SETUP_INSTANCE_ID(v);
     UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
 

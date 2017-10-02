@@ -787,28 +787,28 @@
     #define UNITY_DECLARE_DEPTH_TEXTURE(tex) Texture2DArray tex; SamplerState sampler##tex
 
     #undef SAMPLE_DEPTH_TEXTURE
-    #define SAMPLE_DEPTH_TEXTURE(sampler, uv) UNITY_SAMPLE_TEX2DARRAY(sampler, float3(uv.x, uv.y, (float)unity_StereoEyeIndex)).r
+    #define SAMPLE_DEPTH_TEXTURE(sampler, uv) UNITY_SAMPLE_TEX2DARRAY(sampler, float3((uv).x, (uv).y, (float)unity_StereoEyeIndex)).r
 
     #undef SAMPLE_DEPTH_TEXTURE_PROJ
-    #define SAMPLE_DEPTH_TEXTURE_PROJ(sampler, uv) UNITY_SAMPLE_TEX2DARRAY(sampler, float3(uv.x/uv.w, uv.y/uv.w, (float)unity_StereoEyeIndex)).r
+    #define SAMPLE_DEPTH_TEXTURE_PROJ(sampler, uv) UNITY_SAMPLE_TEX2DARRAY(sampler, float3((uv).x/(uv).w, (uv).y/(uv).w, (float)unity_StereoEyeIndex)).r
 
     #undef SAMPLE_DEPTH_TEXTURE_LOD
-    #define SAMPLE_DEPTH_TEXTURE_LOD(sampler, uv) UNITY_SAMPLE_TEX2DARRAY_LOD(sampler, float3(uv.xy, (float)unity_StereoEyeIndex), uv.w).r
+    #define SAMPLE_DEPTH_TEXTURE_LOD(sampler, uv) UNITY_SAMPLE_TEX2DARRAY_LOD(sampler, float3((uv).xy, (float)unity_StereoEyeIndex), (uv).w).r
 
     #undef SAMPLE_RAW_DEPTH_TEXTURE
-    #define SAMPLE_RAW_DEPTH_TEXTURE(tex, uv) UNITY_SAMPLE_TEX2DARRAY(tex, float3(uv.xy, (float)unity_StereoEyeIndex))
+    #define SAMPLE_RAW_DEPTH_TEXTURE(tex, uv) UNITY_SAMPLE_TEX2DARRAY(tex, float3((uv).xy, (float)unity_StereoEyeIndex))
 
     #undef SAMPLE_RAW_DEPTH_TEXTURE_PROJ
-    #define SAMPLE_RAW_DEPTH_TEXTURE_PROJ(sampler, uv) UNITY_SAMPLE_TEX2DARRAY(sampler, float3(uv.x/uv.w, uv.y/uv.w, (float)unity_StereoEyeIndex))
+    #define SAMPLE_RAW_DEPTH_TEXTURE_PROJ(sampler, uv) UNITY_SAMPLE_TEX2DARRAY(sampler, float3((uv).x/(uv).w, (uv).y/(uv).w, (float)unity_StereoEyeIndex))
 
     #undef SAMPLE_RAW_DEPTH_TEXTURE_LOD
-    #define SAMPLE_RAW_DEPTH_TEXTURE_LOD(sampler, uv) UNITY_SAMPLE_TEX2DARRAY_LOD(sampler, float3(uv.xy, (float)unity_StereoEyeIndex), uv.w)
+    #define SAMPLE_RAW_DEPTH_TEXTURE_LOD(sampler, uv) UNITY_SAMPLE_TEX2DARRAY_LOD(sampler, float3((uv).xy, (float)unity_StereoEyeIndex), (uv).w)
 
     #define UNITY_DECLARE_SCREENSPACE_SHADOWMAP UNITY_DECLARE_TEX2DARRAY
-    #define UNITY_SAMPLE_SCREEN_SHADOW(tex, uv) UNITY_SAMPLE_TEX2DARRAY( tex, float3(uv.x/uv.w, uv.y/uv.w, (float)unity_StereoEyeIndex) ).r
+    #define UNITY_SAMPLE_SCREEN_SHADOW(tex, uv) UNITY_SAMPLE_TEX2DARRAY( tex, float3((uv).x/(uv).w, (uv).y/(uv).w, (float)unity_StereoEyeIndex) ).r
 
     #define UNITY_DECLARE_SCREENSPACE_TEXTURE UNITY_DECLARE_TEX2DARRAY
-    #define UNITY_SAMPLE_SCREENSPACE_TEXTURE(tex, uv) UNITY_SAMPLE_TEX2DARRAY(tex, float3(uv.xy, (float)unity_StereoEyeIndex))
+    #define UNITY_SAMPLE_SCREENSPACE_TEXTURE(tex, uv) UNITY_SAMPLE_TEX2DARRAY(tex, float3((uv).xy, (float)unity_StereoEyeIndex))
 #else
     #define UNITY_DECLARE_DEPTH_TEXTURE(tex) sampler2D_float tex
     #define UNITY_DECLARE_SCREENSPACE_SHADOWMAP(tex) sampler2D tex
