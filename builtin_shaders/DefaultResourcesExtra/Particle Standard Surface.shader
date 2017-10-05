@@ -42,6 +42,7 @@ Shader "Particles/Standard Surface"
         [HideInInspector] _CameraFadingEnabled ("__camerafadingenabled", Float) = 0.0
         [HideInInspector] _SoftParticleFadeParams ("__softparticlefadeparams", Vector) = (0,0,0,0)
         [HideInInspector] _CameraFadeParams ("__camerafadeparams", Vector) = (0,0,0,0)
+        [HideInInspector] _DistortionStrengthScaled ("__distortionstrengthscaled", Float) = 0.0
     }
 
     SubShader
