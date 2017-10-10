@@ -26,7 +26,11 @@
     #ifdef UNITY_MAX_INSTANCE_COUNT
         #undef UNITY_MAX_INSTANCE_COUNT
     #endif
-    #define UNITY_MAX_INSTANCE_COUNT 1
+    #ifdef UNITY_FORCE_MAX_INSTANCE_COUNT
+        #undef UNITY_FORCE_MAX_INSTANCE_COUNT
+    #endif
+    // in analysis pass we force array size to be 1
+    #define UNITY_FORCE_MAX_INSTANCE_COUNT 1
 #endif
 
 #if defined(SHADER_API_D3D11)
@@ -35,6 +39,11 @@
 
 #if defined(SHADER_API_D3D11) || defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES3) || defined(SHADER_API_VULKAN) || defined(SHADER_API_XBOXONE) || defined(SHADER_API_PSSL) || defined(SHADER_API_METAL) && defined(UNITY_COMPILER_HLSLCC) || defined(SHADER_API_SWITCH)
     #define UNITY_INSTANCING_AOS
+#endif
+
+// These platforms support dynamically adjusting the instancing CB size according to the current batch.
+#if defined(SHADER_API_D3D11) || defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES3) || defined(SHADER_API_METAL) || defined(SHADER_API_PSSL)
+    #define UNITY_INSTANCING_SUPPORT_FLEXIBLE_ARRAY_SIZE
 #endif
 
 ////////////////////////////////////////////////////////
@@ -180,17 +189,14 @@
 // instanced property arrays
 #if defined(UNITY_INSTANCING_ENABLED)
 
-    // The maximum number of instances a single instanced draw call can draw.
-    // You can define your custom value before including this file.
-    #ifndef UNITY_MAX_INSTANCE_COUNT
-        #define UNITY_MAX_INSTANCE_COUNT 500
-    #endif
-    #if (defined(SHADER_API_GLES3) || defined(SHADER_API_GLCORE) || defined(SHADER_API_METAL)) && !defined(UNITY_MAX_INSTANCE_COUNT_GL_SAME)
-        // Many devices have max UBO size of 16kb
-        #define UNITY_INSTANCED_ARRAY_SIZE (UNITY_MAX_INSTANCE_COUNT / 4)
+    #ifdef UNITY_FORCE_MAX_INSTANCE_COUNT
+        #define UNITY_INSTANCED_ARRAY_SIZE  UNITY_FORCE_MAX_INSTANCE_COUNT
+    #elif defined(UNITY_INSTANCING_SUPPORT_FLEXIBLE_ARRAY_SIZE)
+        #define UNITY_INSTANCED_ARRAY_SIZE  2 // minimum array size that ensures dynamic indexing
+    #elif defined(UNITY_MAX_INSTANCE_COUNT)
+        #define UNITY_INSTANCED_ARRAY_SIZE  UNITY_MAX_INSTANCE_COUNT
     #else
-        // On desktop, this assumes max UBO size of 64kb
-        #define UNITY_INSTANCED_ARRAY_SIZE UNITY_MAX_INSTANCE_COUNT
+        #define UNITY_INSTANCED_ARRAY_SIZE  500
     #endif
 
     #ifdef UNITY_INSTANCING_AOS
@@ -212,15 +218,8 @@
         #define UNITY_WORLDTOOBJECTARRAY_CB 0
     #endif
 
-    // Put lodFade array to CB1 if worldToObject is in CB0, because otherwise we'll run out of registers in CB0.
-    // TODO: we don't need this when we have flexible array size
     #if defined(UNITY_INSTANCED_LOD_FADE) && (defined(LOD_FADE_PERCENTAGE) || defined(LOD_FADE_CROSSFADE))
         #define UNITY_USE_LODFADEARRAY
-    #endif
-    #if UNITY_WORLDTOOBJECTARRAY_CB == 1
-        #define UNITY_LODFADEARRAY_CB 0
-    #else
-        #define UNITY_LODFADEARRAY_CB 1
     #endif
 
     UNITY_INSTANCING_BUFFER_START(PerDraw0)
@@ -228,7 +227,7 @@
         #if UNITY_WORLDTOOBJECTARRAY_CB == 0
             UNITY_DEFINE_INSTANCED_PROP(float4x4, unity_WorldToObjectArray)
         #endif
-        #if defined(UNITY_USE_LODFADEARRAY) && UNITY_LODFADEARRAY_CB == 0
+        #ifdef UNITY_USE_LODFADEARRAY
             UNITY_DEFINE_INSTANCED_PROP(float, unity_LODFadeArray)
         #endif
     UNITY_INSTANCING_BUFFER_END(unity_Builtins0)
@@ -236,9 +235,6 @@
     UNITY_INSTANCING_BUFFER_START(PerDraw1)
         #if UNITY_WORLDTOOBJECTARRAY_CB == 1
             UNITY_DEFINE_INSTANCED_PROP(float4x4, unity_WorldToObjectArray)
-        #endif
-        #if defined(UNITY_USE_LODFADEARRAY) && UNITY_LODFADEARRAY_CB == 1
-            UNITY_DEFINE_INSTANCED_PROP(float, unity_LODFadeArray)
         #endif
     UNITY_INSTANCING_BUFFER_END(unity_Builtins1)
 
@@ -250,7 +246,7 @@
 
     #ifdef UNITY_USE_LODFADEARRAY
         // the quantized fade value (unity_LODFade.y) is automatically used for cross-fading instances
-        #define unity_LODFade       UNITY_ACCESS_INSTANCED_PROP(MERGE_UNITY_BUILTINS_INDEX(UNITY_LODFADEARRAY_CB), unity_LODFadeArray).xxxx
+        #define unity_LODFade       UNITY_ACCESS_INSTANCED_PROP(unity_Builtins0, unity_LODFadeArray).xxxx
     #endif
 
     inline float4 UnityObjectToClipPosInstanced(in float3 pos)
@@ -264,10 +260,6 @@
     #define UnityObjectToClipPos UnityObjectToClipPosInstanced
 
 #else // UNITY_INSTANCING_ENABLED
-
-    #ifdef UNITY_MAX_INSTANCE_COUNT
-        #undef UNITY_MAX_INSTANCE_COUNT
-    #endif
 
     // in procedural mode we don't need cbuffer, and properties are not uniforms
     #ifdef UNITY_PROCEDURAL_INSTANCING_ENABLED
