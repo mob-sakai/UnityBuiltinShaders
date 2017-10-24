@@ -46,6 +46,10 @@
     #define UNITY_INSTANCING_SUPPORT_FLEXIBLE_ARRAY_SIZE
 #endif
 
+#if defined(SHADER_TARGET_SURFACE_ANALYSIS) && defined(UNITY_SUPPORT_INSTANCING)
+    #undef UNITY_SUPPORT_INSTANCING
+#endif
+
 ////////////////////////////////////////////////////////
 // instancing paths
 // - UNITY_INSTANCING_ENABLED               Defined if instancing path is taken.
