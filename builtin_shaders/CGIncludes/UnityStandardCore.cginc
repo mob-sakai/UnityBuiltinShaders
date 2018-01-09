@@ -5,7 +5,6 @@
 
 #include "UnityCG.cginc"
 #include "UnityShaderVariables.cginc"
-#include "UnityInstancing.cginc"
 #include "UnityStandardConfig.cginc"
 #include "UnityStandardInput.cginc"
 #include "UnityPBSLighting.cginc"
@@ -361,12 +360,16 @@ struct VertexOutputForwardBase
     half3 eyeVec                        : TEXCOORD1;
     half4 tangentToWorldAndPackedData[3]    : TEXCOORD2;    // [3x3:tangentToWorld | 1x3:viewDirForParallax or worldPos]
     half4 ambientOrLightmapUV           : TEXCOORD5;    // SH or Lightmap UV
+#if !defined (UNITY_HALF_PRECISION_FRAGMENT_SHADER_REGISTERS)
     UNITY_SHADOW_COORDS(6)
     UNITY_FOG_COORDS(7)
-
-    // next ones would not fit into SM2.0 limits, but they are always for SM3.0+
+#else
+    UNITY_LIGHTING_COORDS(6,7)
+    UNITY_FOG_COORDS(8)
+#endif
+        // next ones would not fit into SM2.0 limits, but they are always for SM3.0+
     #if UNITY_REQUIRE_FRAG_WORLDPOS && !UNITY_PACK_WORLDPOS_WITH_TANGENT
-        float3 posWorld                 : TEXCOORD8;
+        float3 posWorld                 : TEXCOORD9;
     #endif
 
     UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -410,7 +413,7 @@ VertexOutputForwardBase vertForwardBase (VertexInput v)
     #endif
 
     //We need this for shadow receving
-    UNITY_TRANSFER_SHADOW(o, v.uv1);
+    UNITY_TRANSFER_LIGHTING(o, v.uv1);
 
     o.ambientOrLightmapUV = VertexGIForward(v, posWorld, normalWorld);
 
@@ -463,8 +466,13 @@ struct VertexOutputForwardAdd
     half3 eyeVec                        : TEXCOORD1;
     half4 tangentToWorldAndLightDir[3]  : TEXCOORD2;    // [3x3:tangentToWorld | 1x3:lightDir]
     float3 posWorld                     : TEXCOORD5;
+#if !defined (UNITY_HALF_PRECISION_FRAGMENT_SHADER_REGISTERS)
     UNITY_SHADOW_COORDS(6)
     UNITY_FOG_COORDS(7)
+#else
+    UNITY_LIGHTING_COORDS(6, 7)
+    UNITY_FOG_COORDS(8)
+#endif
 
     // next ones would not fit into SM2.0 limits, but they are always for SM3.0+
 #if defined(_PARALLAXMAP)
@@ -500,8 +508,8 @@ VertexOutputForwardAdd vertForwardAdd (VertexInput v)
         o.tangentToWorldAndLightDir[1].xyz = 0;
         o.tangentToWorldAndLightDir[2].xyz = normalWorld;
     #endif
-    //We need this for shadow receiving
-    UNITY_TRANSFER_SHADOW(o, v.uv1);
+    //We need this for shadow receiving and lighting
+    UNITY_TRANSFER_LIGHTING(o, v.uv1);
 
     float3 lightDir = _WorldSpaceLightPos0.xyz - posWorld.xyz * _WorldSpaceLightPos0.w;
     #ifndef USING_DIRECTIONAL_LIGHT
@@ -556,6 +564,7 @@ struct VertexOutputDeferred
         float3 posWorld                     : TEXCOORD6;
     #endif
 
+    UNITY_VERTEX_INPUT_INSTANCE_ID
     UNITY_VERTEX_OUTPUT_STEREO
 };
 
@@ -565,6 +574,7 @@ VertexOutputDeferred vertDeferred (VertexInput v)
     UNITY_SETUP_INSTANCE_ID(v);
     VertexOutputDeferred o;
     UNITY_INITIALIZE_OUTPUT(VertexOutputDeferred, o);
+    UNITY_TRANSFER_INSTANCE_ID(v, o);
     UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
 
     float4 posWorld = mul(unity_ObjectToWorld, v.vertex);
@@ -641,6 +651,7 @@ void fragDeferred (
     UNITY_APPLY_DITHER_CROSSFADE(i.pos.xy);
 
     FRAGMENT_SETUP(s)
+    UNITY_SETUP_INSTANCE_ID(i);
 
     // no analytic lights in this pass
     UnityLight dummyLight = DummyLight ();

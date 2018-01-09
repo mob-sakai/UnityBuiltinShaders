@@ -13,16 +13,13 @@
 // Default BRDF to use:
 #if !defined (UNITY_BRDF_PBS) // allow to explicitly override BRDF in custom shader
     // still add safe net for low shader models, otherwise we might end up with shaders failing to compile
-    #if SHADER_TARGET < 30
+    #if SHADER_TARGET < 30 || defined(SHADER_TARGET_SURFACE_ANALYSIS) // only need "something" for surface shader analysis pass; pick the cheap one
         #define UNITY_BRDF_PBS BRDF3_Unity_PBS
     #elif defined(UNITY_PBS_USE_BRDF3)
         #define UNITY_BRDF_PBS BRDF3_Unity_PBS
     #elif defined(UNITY_PBS_USE_BRDF2)
         #define UNITY_BRDF_PBS BRDF2_Unity_PBS
     #elif defined(UNITY_PBS_USE_BRDF1)
-        #define UNITY_BRDF_PBS BRDF1_Unity_PBS
-    #elif defined(SHADER_TARGET_SURFACE_ANALYSIS)
-        // we do preprocess pass during shader analysis and we dont actually care about brdf as we need only inputs/outputs
         #define UNITY_BRDF_PBS BRDF1_Unity_PBS
     #else
         #error something broke in auto-choosing BRDF
