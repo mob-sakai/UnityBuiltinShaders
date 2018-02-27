@@ -166,7 +166,7 @@ half UnityComputeForwardShadows(float2 lightmapUV, float3 worldPos, float4 scree
 #endif
 
 #ifdef POINT
-sampler2D _LightTexture0;
+sampler2D_float _LightTexture0;
 unityShadowCoord4x4 unity_WorldToLight;
 #   define UNITY_LIGHT_ATTENUATION(destName, input, worldPos) \
         unityShadowCoord3 lightCoord = mul(unity_WorldToLight, unityShadowCoord4(worldPos, 1)).xyz; \
@@ -175,9 +175,9 @@ unityShadowCoord4x4 unity_WorldToLight;
 #endif
 
 #ifdef SPOT
-sampler2D _LightTexture0;
+sampler2D_float _LightTexture0;
 unityShadowCoord4x4 unity_WorldToLight;
-sampler2D _LightTextureB0;
+sampler2D_float _LightTextureB0;
 inline fixed UnitySpotCookie(unityShadowCoord4 LightCoord)
 {
     return tex2D(_LightTexture0, LightCoord.xy / LightCoord.w + 0.5).w;
@@ -202,9 +202,9 @@ inline fixed UnitySpotAttenuate(unityShadowCoord3 LightCoord)
 #endif
 
 #ifdef POINT_COOKIE
-samplerCUBE _LightTexture0;
+samplerCUBE_float _LightTexture0;
 unityShadowCoord4x4 unity_WorldToLight;
-sampler2D _LightTextureB0;
+sampler2D_float _LightTextureB0;
 #   if !defined(UNITY_HALF_PRECISION_FRAGMENT_SHADER_REGISTERS)
 #       define DECLARE_LIGHT_COORD(input, worldPos) unityShadowCoord3 lightCoord = mul(unity_WorldToLight, unityShadowCoord4(worldPos, 1)).xyz
 #   else
@@ -217,7 +217,7 @@ sampler2D _LightTextureB0;
 #endif
 
 #ifdef DIRECTIONAL_COOKIE
-sampler2D _LightTexture0;
+sampler2D_float _LightTexture0;
 unityShadowCoord4x4 unity_WorldToLight;
 #   if !defined(UNITY_HALF_PRECISION_FRAGMENT_SHADER_REGISTERS)
 #       define DECLARE_LIGHT_COORD(input, worldPos) unityShadowCoord2 lightCoord = mul(unity_WorldToLight, unityShadowCoord4(worldPos, 1)).xy
