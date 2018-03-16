@@ -4,7 +4,13 @@
 #define HLSL_SUPPORT_INCLUDED
 
 #if defined(SHADER_TARGET_SURFACE_ANALYSIS)
-    // Cg is used for surface shader analysis step
+    // surface shader analysis is complicated, and is done via two compilers:
+    // - Mojoshader for source level analysis (to find out structs/functions with their members & parameters).
+    //   This step can understand DX9 style HLSL syntax.
+    // - HLSL compiler for "what actually got read & written to" (taking dead code etc into account), via a dummy
+    //   compilation and reflection of the shader. This step can understand DX9 & DX11 HLSL syntax.
+    // Neither of these compilers are "Cg", but we used to use Cg in the past for this; keep the macro
+    // name intact in case some user-written shaders depend on it being that.
     #define UNITY_COMPILER_CG
 #elif defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES3) || defined(SHADER_API_METAL) || defined(SHADER_API_VULKAN) || (defined(UNITY_PREFER_HLSLCC) && defined(SHADER_API_GLES))
     #define UNITY_COMPILER_HLSL
@@ -449,9 +455,14 @@
 //  - UNITY_SAMPLE_TEX*_SAMPLER samples a texture, using sampler from another texture.
 //      That another texture must also be actually used in the current shader, otherwise
 //      the correct sampler will not be set.
-#if defined(SHADER_API_D3D11) || defined(SHADER_API_XBOXONE) || defined(UNITY_COMPILER_HLSLCC) || defined(SHADER_API_PSSL)
+#if defined(SHADER_API_D3D11) || defined(SHADER_API_XBOXONE) || defined(UNITY_COMPILER_HLSLCC) || defined(SHADER_API_PSSL) || (defined(SHADER_TARGET_SURFACE_ANALYSIS) && !defined(SHADER_TARGET_SURFACE_ANALYSIS_MOJOSHADER))
     // DX11 style HLSL syntax; separate textures and samplers
-    // NB for HLSLcc we have special unity-specific syntax to pass sampler precision information
+    //
+    // Note: for HLSLcc we have special unity-specific syntax to pass sampler precision information.
+    //
+    // Note: for surface shader analysis, go into DX11 syntax path when non-mojoshader part of analysis is done,
+    // this allows surface shaders to use _NOSAMPLER and similar macros, without using up a sampler register.
+    // Don't do that for mojoshader part, as that one can only parse DX9 style HLSL.
 
     // 2D textures
     #define UNITY_DECLARE_TEX2D(tex) Texture2D tex; SamplerState sampler##tex
