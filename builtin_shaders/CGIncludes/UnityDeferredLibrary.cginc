@@ -44,12 +44,12 @@ float4 _LightPos;
 float4 _LightColor;
 float4 unity_LightmapFade;
 float4x4 unity_WorldToLight;
-sampler2D _LightTextureB0;
+sampler2D_float _LightTextureB0;
 
 #if defined (POINT_COOKIE)
-samplerCUBE _LightTexture0;
+samplerCUBE_float _LightTexture0;
 #else
-sampler2D _LightTexture0;
+sampler2D_float _LightTexture0;
 #endif
 
 #if defined (SHADOWS_SCREEN)
@@ -169,7 +169,7 @@ void UnityDeferredCalculateLightParams (
         float atten = tex2Dbias (_LightTexture0, float4(uvCookie.xy / uvCookie.w, 0, -8)).w;
         atten *= uvCookie.w < 0;
         float att = dot(tolight, tolight) * _LightPos.w;
-        atten *= tex2D (_LightTextureB0, att.rr).UNITY_ATTEN_CHANNEL;
+        atten *= tex2D (_LightTextureB0, att.rr).r;
 
         atten *= UnityDeferredComputeShadow (wpos, fadeDist, uv);
 
@@ -190,7 +190,7 @@ void UnityDeferredCalculateLightParams (
         half3 lightDir = -normalize (tolight);
 
         float att = dot(tolight, tolight) * _LightPos.w;
-        float atten = tex2D (_LightTextureB0, att.rr).UNITY_ATTEN_CHANNEL;
+        float atten = tex2D (_LightTextureB0, att.rr).r;
 
         atten *= UnityDeferredComputeShadow (tolight, fadeDist, uv);
 

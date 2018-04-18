@@ -40,6 +40,7 @@ Shader "Particles/Standard Unlit"
         [HideInInspector] _SoftParticleFadeParams ("__softparticlefadeparams", Vector) = (0,0,0,0)
         [HideInInspector] _CameraFadeParams ("__camerafadeparams", Vector) = (0,0,0,0)
         [HideInInspector] _ColorAddSubDiff ("__coloraddsubdiff", Vector) = (0,0,0,0)
+        [HideInInspector] _DistortionStrengthScaled ("__distortionstrengthscaled", Float) = 0.0
     }
 
     Category
@@ -77,6 +78,8 @@ Shader "Particles/Standard Unlit"
                 #pragma shader_feature _ _COLOROVERLAY_ON _COLORCOLOR_ON _COLORADDSUBDIFF_ON
                 #pragma shader_feature _REQUIRE_UV2
                 #pragma multi_compile_shadowcaster
+                #pragma multi_compile_instancing
+                #pragma instancing_options procedural:vertInstancingSetup
 
                 #pragma vertex vertParticleShadowCaster
                 #pragma fragment fragParticleShadowCaster
@@ -104,6 +107,8 @@ Shader "Particles/Standard Unlit"
 
                 #pragma vertex vertParticleUnlit
                 #pragma fragment fragParticleUnlit
+                #pragma multi_compile_instancing
+                #pragma instancing_options procedural:vertInstancingSetup
 
                 #include "UnityStandardParticles.cginc"
                 ENDCG

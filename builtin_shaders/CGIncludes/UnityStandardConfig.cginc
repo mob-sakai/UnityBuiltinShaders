@@ -28,7 +28,12 @@
 // disregarding what is set in TierSettings, some features have hardware restrictions
 // so we still add safety net, otherwise we might end up with shaders failing to compile
 
-#if SHADER_TARGET < 30
+#if defined(SHADER_TARGET_SURFACE_ANALYSIS)
+    // For surface shader code analysis pass, disable some features that don't affect inputs/outputs
+    #undef UNITY_SPECCUBE_BOX_PROJECTION
+    #undef UNITY_SPECCUBE_BLENDING
+    #undef UNITY_USE_DITHER_MASK_FOR_ALPHABLENDED_SHADOWS
+#elif SHADER_TARGET < 30
     #undef UNITY_SPECCUBE_BOX_PROJECTION
     #undef UNITY_SPECCUBE_BLENDING
     #undef UNITY_ENABLE_DETAIL_NORMALMAP
@@ -36,7 +41,7 @@
         #undef _PARALLAXMAP
     #endif
 #endif
-#if (SHADER_TARGET < 30) || defined(SHADER_API_GLES) || defined(SHADER_API_D3D11_9X) || defined (SHADER_API_PSP2)
+#if (SHADER_TARGET < 30) || defined(SHADER_API_GLES) || defined (SHADER_API_PSP2)
     #undef UNITY_USE_DITHER_MASK_FOR_ALPHABLENDED_SHADOWS
 #endif
 
@@ -82,7 +87,7 @@
 
 // Should we pack worldPos along tangent (saving an interpolator)
 // We want to skip this on mobile platforms, because worldpos gets packed into mediump
-#if UNITY_REQUIRE_FRAG_WORLDPOS && !defined(_PARALLAXMAP) && !(defined(SHADER_API_MOBILE) && !defined(SHADER_API_D3D11_9X))
+#if UNITY_REQUIRE_FRAG_WORLDPOS && !defined(_PARALLAXMAP) && !defined(SHADER_API_MOBILE)
     #define UNITY_PACK_WORLDPOS_WITH_TANGENT 1
 #else
     #define UNITY_PACK_WORLDPOS_WITH_TANGENT 0

@@ -77,6 +77,10 @@ CBUFFER_START(UnityPerCamera)
     // z = unused
     // w = 1.0 if camera is ortho, 0.0 if perspective
     float4 unity_OrthoParams;
+#if defined(STEREO_CUBEMAP_RENDER_ON)
+    //x-component is the half stereo separation value, which a positive for right eye and negative for left eye. The y,z,w components are unused.
+    float4 unity_HalfStereoSeparation;
+#endif
 CBUFFER_END
 
 
@@ -246,15 +250,8 @@ CBUFFER_END
 UNITY_DECLARE_TEX2D_HALF(unity_Lightmap);
 // Directional lightmap (always used with unity_Lightmap, so can share sampler)
 UNITY_DECLARE_TEX2D_NOSAMPLER_HALF(unity_LightmapInd);
-// Combined light masks
-#if defined (SHADOWS_SHADOWMASK)
-    #if defined(LIGHTMAP_ON)
-        //Can share sampler if lightmap are used.
-        UNITY_DECLARE_TEX2D_NOSAMPLER(unity_ShadowMask);
-    #else
-        UNITY_DECLARE_TEX2D(unity_ShadowMask);
-    #endif
-#endif
+// Shadowmasks
+UNITY_DECLARE_TEX2D(unity_ShadowMask);
 
 // Dynamic GI lightmap
 UNITY_DECLARE_TEX2D(unity_DynamicLightmap);
@@ -295,7 +292,7 @@ CBUFFER_END
     #undef UNITY_LIGHT_PROBE_PROXY_VOLUME
     // Requires quite modern graphics support (3D float textures with filtering)
     // Note: Keep this in synch with the list from LightProbeProxyVolume::HasHardwareSupport && SurfaceCompiler::IsLPPVAvailableForAnyTargetPlatform
-    #if !defined(UNITY_NO_LPPV) && (defined (SHADER_API_D3D11) || defined (SHADER_API_D3D12) || defined (SHADER_API_GLCORE) || defined (SHADER_API_XBOXONE) || defined (SHADER_API_PSSL) || defined(SHADER_API_VULKAN) || defined(SHADER_API_METAL))
+    #if !defined(UNITY_NO_LPPV) && (defined (SHADER_API_D3D11) || defined (SHADER_API_D3D12) || defined (SHADER_API_GLCORE) || defined (SHADER_API_XBOXONE) || defined (SHADER_API_PSSL) || defined(SHADER_API_VULKAN) || defined(SHADER_API_METAL) || defined(SHADER_API_SWITCH))
         #define UNITY_LIGHT_PROBE_PROXY_VOLUME 1
     #else
         #define UNITY_LIGHT_PROBE_PROXY_VOLUME 0
