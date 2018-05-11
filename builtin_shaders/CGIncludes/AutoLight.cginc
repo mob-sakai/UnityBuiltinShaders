@@ -137,8 +137,8 @@ half UnityComputeForwardShadows(float2 lightmapUV, float3 worldPos, float4 scree
 #       define UNITY_SHADOW_ATTENUATION(a, worldPos) UnityComputeForwardShadows(0, worldPos, a._ShadowCoord)
 #   endif
 #else
+#   define UNITY_SHADOW_COORDS(idx1) unityShadowCoord4 _ShadowCoord : TEXCOORD##idx1;
 #   if defined(SHADOWS_SHADOWMASK)
-#       define UNITY_SHADOW_COORDS(idx1) unityShadowCoord4 _ShadowCoord : TEXCOORD##idx1;
 #       define UNITY_TRANSFER_SHADOW(a, coord) a._ShadowCoord.xy = coord.xy * unity_LightmapST.xy + unity_LightmapST.zw;
 #       if (defined(SHADOWS_DEPTH) || defined(SHADOWS_SCREEN) || defined(SHADOWS_CUBE) || UNITY_LIGHT_PROBE_PROXY_VOLUME)
 #           define UNITY_SHADOW_ATTENUATION(a, worldPos) UnityComputeForwardShadows(a._ShadowCoord.xy, worldPos, UNITY_READ_SHADOW_COORDS(a))
@@ -146,7 +146,6 @@ half UnityComputeForwardShadows(float2 lightmapUV, float3 worldPos, float4 scree
 #           define UNITY_SHADOW_ATTENUATION(a, worldPos) UnityComputeForwardShadows(a._ShadowCoord.xy, 0, 0)
 #       endif
 #   else
-#       define UNITY_SHADOW_COORDS(idx1) SHADOW_COORDS(idx1)
 #       if !defined(UNITY_HALF_PRECISION_FRAGMENT_SHADER_REGISTERS)
 #           define UNITY_TRANSFER_SHADOW(a, coord)
 #       else
