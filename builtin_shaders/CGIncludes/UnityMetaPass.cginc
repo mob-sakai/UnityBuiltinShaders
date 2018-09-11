@@ -228,6 +228,7 @@ half4 UnityMeta_pbrMetalspec(UnityMetaInput IN)
 
 float4 UnityMetaVertexPosition (float4 vertex, float2 uv1, float2 uv2, float4 lightmapST, float4 dynlightmapST)
 {
+#if !defined(EDITOR_VISUALIZATION)
     if (unity_MetaVertexControl.x)
     {
         vertex.xy = uv1 * lightmapST.xy + lightmapST.zw;
@@ -243,6 +244,9 @@ float4 UnityMetaVertexPosition (float4 vertex, float2 uv1, float2 uv2, float4 li
         vertex.z = vertex.z > 0 ? 1.0e-4f : 0.0f;
     }
     return mul(UNITY_MATRIX_VP, float4(vertex.xyz, 1.0));
+#else
+    return UnityObjectToClipPos(vertex);
+#endif
 }
 
 float unity_OneOverOutputBoost;
