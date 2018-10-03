@@ -14,7 +14,7 @@ Shader "Hidden/TerrainEngine/Splatmap/Specular-AddPass" {
         }
 
         CGPROGRAM
-        #pragma surface surf BlinnPhong decal:add vertex:SplatmapVert finalcolor:SplatmapFinalColor finalprepass:SplatmapFinalPrepass finalgbuffer:SplatmapFinalGBuffer
+        #pragma surface surf BlinnPhong decal:add vertex:SplatmapVert finalcolor:SplatmapFinalColor finalprepass:SplatmapFinalPrepass finalgbuffer:SplatmapFinalGBuffer fullforwardshadows nometa
         #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap forwardadd
         #pragma multi_compile_fog
         #pragma multi_compile __ _NORMALMAP

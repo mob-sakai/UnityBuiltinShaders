@@ -18,7 +18,7 @@ Shader "Hidden/TerrainEngine/Splatmap/Specular-Base" {
         LOD 200
 
         CGPROGRAM
-        #pragma surface surf BlinnPhong vertex:SplatmapVert addshadow
+        #pragma surface surf BlinnPhong vertex:SplatmapVert addshadow fullforwardshadows
         #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap forwardadd
 
         #define TERRAIN_BASE_PASS

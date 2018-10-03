@@ -17,7 +17,7 @@ Shader "Nature/Terrain/Specular" {
         }
 
         CGPROGRAM
-        #pragma surface surf BlinnPhong vertex:SplatmapVert finalcolor:SplatmapFinalColor finalprepass:SplatmapFinalPrepass finalgbuffer:SplatmapFinalGBuffer addshadow
+        #pragma surface surf BlinnPhong vertex:SplatmapVert finalcolor:SplatmapFinalColor finalprepass:SplatmapFinalPrepass finalgbuffer:SplatmapFinalGBuffer addshadow fullforwardshadows
         #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap forwardadd
         #pragma multi_compile_fog
         #pragma multi_compile __ _NORMALMAP

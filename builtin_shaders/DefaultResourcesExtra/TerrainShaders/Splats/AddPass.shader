@@ -2,7 +2,7 @@
 
 Shader "Hidden/TerrainEngine/Splatmap/Diffuse-AddPass" {
     CGINCLUDE
-        #pragma surface surf Lambert decal:add vertex:SplatmapVert finalcolor:SplatmapFinalColor finalprepass:SplatmapFinalPrepass finalgbuffer:SplatmapFinalGBuffer
+        #pragma surface surf Lambert decal:add vertex:SplatmapVert finalcolor:SplatmapFinalColor finalprepass:SplatmapFinalPrepass finalgbuffer:SplatmapFinalGBuffer fullforwardshadows nometa
         #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap forwardadd
         #pragma multi_compile_fog
 

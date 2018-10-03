@@ -10,7 +10,7 @@ SubShader {
     LOD 200
 
 CGPROGRAM
-#pragma surface surf Lambert vertex:SplatmapVert addshadow
+#pragma surface surf Lambert vertex:SplatmapVert addshadow fullforwardshadows
 #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap forwardadd
 
 #define TERRAIN_BASE_PASS

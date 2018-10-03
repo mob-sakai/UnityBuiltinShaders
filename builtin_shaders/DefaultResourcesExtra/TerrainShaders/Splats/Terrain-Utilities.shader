@@ -13,7 +13,7 @@ Shader "Hidden/Nature/Terrain/Utilities"
                 #pragma vertex vert
                 #pragma fragment frag
                 #pragma multi_compile_instancing
-                #pragma instancing_options nomatrices nolightprobe nolightmap
+                #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
                 #include "UnityCG.cginc"
 
                 #define TERRAIN_BASE_PASS
@@ -45,7 +45,7 @@ Shader "Hidden/Nature/Terrain/Utilities"
                 #pragma vertex vert
                 #pragma fragment frag
                 #pragma multi_compile_instancing
-                #pragma instancing_options nomatrices nolightprobe nolightmap
+                #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
                 #include "UnityCG.cginc"
 
                 #define TERRAIN_BASE_PASS
