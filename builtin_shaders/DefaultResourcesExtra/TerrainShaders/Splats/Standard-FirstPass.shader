@@ -14,7 +14,7 @@ Shader "Nature/Terrain/Standard" {
         }
 
         CGPROGRAM
-        #pragma surface surf Standard vertex:SplatmapVert finalcolor:SplatmapFinalColor finalgbuffer:SplatmapFinalGBuffer addshadow
+        #pragma surface surf Standard vertex:SplatmapVert finalcolor:SplatmapFinalColor finalgbuffer:SplatmapFinalGBuffer addshadow fullforwardshadows
         #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap forwardadd
         #pragma multi_compile_fog // needed because finalcolor oppresses fog code generation.
         #pragma target 3.0

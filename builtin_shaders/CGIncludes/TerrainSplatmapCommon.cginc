@@ -37,6 +37,11 @@ UNITY_INSTANCING_BUFFER_END(Terrain)
     float _NormalScale0, _NormalScale1, _NormalScale2, _NormalScale3;
 #endif
 
+#if defined(TERRAIN_BASE_PASS) && defined(UNITY_PASS_META)
+    // When we render albedo for GI baking, we actually need to take the ST
+    float4 _MainTex_ST;
+#endif
+
 void SplatmapVert(inout appdata_full v, out Input data)
 {
     UNITY_INITIALIZE_OUTPUT(Input, data);
@@ -72,7 +77,11 @@ void SplatmapVert(inout appdata_full v, out Input data)
     v.tangent.w = -1;
 
     data.tc.xy = v.texcoord;
-#ifndef TERRAIN_BASE_PASS
+#ifdef TERRAIN_BASE_PASS
+    #ifdef UNITY_PASS_META
+        data.tc.xy = v.texcoord * _MainTex_ST.xy + _MainTex_ST.zw;
+    #endif
+#else
     float4 pos = UnityObjectToClipPos(v.vertex);
     UNITY_TRANSFER_FOG(data, pos);
 #endif

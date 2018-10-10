@@ -17,7 +17,7 @@ Shader "Hidden/TerrainEngine/Splatmap/Standard-Base" {
         LOD 200
 
         CGPROGRAM
-        #pragma surface surf Standard vertex:SplatmapVert addshadow
+        #pragma surface surf Standard vertex:SplatmapVert addshadow fullforwardshadows
         #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap forwardadd
         #pragma target 3.0
         // needs more than 8 texcoords
