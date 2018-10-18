@@ -11,6 +11,7 @@
         CGINCLUDE
 
             #include "UnityCG.cginc"
+            #include "TerrainTool.cginc"
 
             sampler2D _MainTex;
             float4 _MainTex_TexelSize;      // 1/width, 1/height, width, height
@@ -24,19 +25,19 @@
 
             struct appdata_t {
                 float4 vertex : POSITION;
-                float2 texcoord : TEXCOORD0;
+                float2 pcUV : TEXCOORD0;
             };
 
             struct v2f {
                 float4 vertex : SV_POSITION;
-                float2 texcoord : TEXCOORD0;
+                float2 pcUV : TEXCOORD0;
             };
 
             v2f vert(appdata_t v)
             {
                 v2f o;
                 o.vertex = UnityObjectToClipPos(v.vertex);
-                o.texcoord = v.texcoord;
+                o.pcUV = v.pcUV;
                 return o;
             }
 
@@ -68,8 +69,15 @@
 
             float4 RaiseHeight(v2f i) : SV_Target
             {
-                float height = UnpackHeightmap(tex2D(_MainTex, i.texcoord));
-                float brushShape = UnpackHeightmap(tex2D(_BrushTex, i.texcoord));
+                float2 brushUV = PaintContextUVToBrushUV(i.pcUV);
+                float2 heightmapUV = PaintContextUVToHeightmapUV(i.pcUV);
+
+                // out of bounds multiplier
+                float oob = all(saturate(brushUV) == brushUV) ? 1.0f : 0.0f;
+
+                float height = UnpackHeightmap(tex2D(_MainTex, heightmapUV));
+                float brushShape = oob * UnpackHeightmap(tex2D(_BrushTex, brushUV));
+
                 return PackHeightmap(clamp(height + BRUSH_STRENGTH * brushShape, 0, 0.5f));
             }
             ENDCG
@@ -92,19 +100,26 @@
 
             float4 StampHeight(v2f i) : SV_Target
             {
-                float height = UnpackHeightmap(tex2D(_MainTex, i.texcoord));
-                float brushPattern = UnpackHeightmap(tex2D(_BrushTex, i.texcoord));
-                float brushHeight = brushPattern * BRUSH_STAMPHEIGHT;
-                float targetHeight = max(height, brushHeight);
+                float2 brushUV = PaintContextUVToBrushUV(i.pcUV);
+                float2 heightmapUV = PaintContextUVToHeightmapUV(i.pcUV);
+
+                // out of bounds multiplier
+                float oob = all(saturate(brushUV) == brushUV) ? 1.0f : 0.0f;
+
+                float height = UnpackHeightmap(tex2D(_MainTex, heightmapUV));
+                float brushShape = oob * UnpackHeightmap(tex2D(_BrushTex, brushUV));
+
+                float brushHeight = brushShape * BRUSH_STAMPHEIGHT;
                 float brushIntersection = saturate(1.0f - BRUSH_STRENGTH * 100.0f);     // convert to 0..1 range, then invert
 
+                float targetHeight; // = max(height, brushHeight);
                 {
                     // TODO:  get rid of this hack to convert brush strength into a smooth factor -- make this an explicit control instead
                     float brushSmooth = exp2(brushIntersection * 8.0f);
                     targetHeight = SmoothMax(height, brushHeight, brushSmooth);
                 }
 
-                targetHeight = clamp(targetHeight, 0.0f, 0.5f);                         // Keep in valid range (0..0.5f)  TODO
+                targetHeight = clamp(targetHeight, 0.0f, 0.5f);                         // Keep in valid range (0..0.5f)
                 height = targetHeight;  // lerp(height, targetHeight, brushOpacity);           // TODO: do we want to obey actual opacity as well?
                 return PackHeightmap(height);
             }
@@ -121,8 +136,14 @@
 
             float4 SetHeight(v2f i) : SV_Target
             {
-                float height = UnpackHeightmap(tex2D(_MainTex, i.texcoord));
-                float brushStrength = BRUSH_STRENGTH * UnpackHeightmap(tex2D(_BrushTex, i.texcoord));
+                float2 brushUV = PaintContextUVToBrushUV(i.pcUV);
+                float2 heightmapUV = PaintContextUVToHeightmapUV(i.pcUV);
+
+                // out of bounds multiplier
+                float oob = all(saturate(brushUV) == brushUV) ? 1.0f : 0.0f;
+
+                float height = UnpackHeightmap(tex2D(_MainTex, heightmapUV));
+                float brushStrength = BRUSH_STRENGTH * oob * UnpackHeightmap(tex2D(_BrushTex, brushUV));
 
                 // smooth set
                 float targetHeight = BRUSH_TARGETHEIGHT;
@@ -159,22 +180,29 @@
 
             float4 SmoothHeight(v2f i) : SV_Target
             {
-                float height = UnpackHeightmap(tex2D(_MainTex, i.texcoord));
-                float brushStrength = BRUSH_STRENGTH * UnpackHeightmap(tex2D(_BrushTex, i.texcoord));
+                float2 brushUV = PaintContextUVToBrushUV(i.pcUV);
+                float2 heightmapUV = PaintContextUVToHeightmapUV(i.pcUV);
+
+                // out of bounds multiplier
+                float oob = all(saturate(brushUV) == brushUV) ? 1.0f : 0.0f;
+
+                float height = UnpackHeightmap(tex2D(_MainTex, heightmapUV));
+                float brushStrength = BRUSH_STRENGTH * oob * UnpackHeightmap(tex2D(_BrushTex, brushUV));
 
                 float h = 0.0F;
                 float xoffset = _MainTex_TexelSize.x;
                 float yoffset = _MainTex_TexelSize.y;
 
-                h += UnpackHeightmap(tex2D(_MainTex, i.texcoord                             ));
-                h += UnpackHeightmap(tex2D(_MainTex, i.texcoord + float2( xoffset,  0      )));
-                h += UnpackHeightmap(tex2D(_MainTex, i.texcoord + float2(-xoffset,  0      )));
-                h += UnpackHeightmap(tex2D(_MainTex, i.texcoord + float2( xoffset,  yoffset))) * 0.75F;
-                h += UnpackHeightmap(tex2D(_MainTex, i.texcoord + float2(-xoffset,  yoffset))) * 0.75F;
-                h += UnpackHeightmap(tex2D(_MainTex, i.texcoord + float2( xoffset, -yoffset))) * 0.75F;
-                h += UnpackHeightmap(tex2D(_MainTex, i.texcoord + float2(-xoffset, -yoffset))) * 0.75F;
-                h += UnpackHeightmap(tex2D(_MainTex, i.texcoord + float2( 0,        yoffset)));
-                h += UnpackHeightmap(tex2D(_MainTex, i.texcoord + float2( 0,       -yoffset)));
+                // 3*3 filter
+                h += height;
+                h += UnpackHeightmap(tex2D(_MainTex, heightmapUV + float2( xoffset,  0      )));
+                h += UnpackHeightmap(tex2D(_MainTex, heightmapUV + float2(-xoffset,  0      )));
+                h += UnpackHeightmap(tex2D(_MainTex, heightmapUV + float2( xoffset,  yoffset))) * 0.75F;
+                h += UnpackHeightmap(tex2D(_MainTex, heightmapUV + float2(-xoffset,  yoffset))) * 0.75F;
+                h += UnpackHeightmap(tex2D(_MainTex, heightmapUV + float2( xoffset, -yoffset))) * 0.75F;
+                h += UnpackHeightmap(tex2D(_MainTex, heightmapUV + float2(-xoffset, -yoffset))) * 0.75F;
+                h += UnpackHeightmap(tex2D(_MainTex, heightmapUV + float2( 0,        yoffset)));
+                h += UnpackHeightmap(tex2D(_MainTex, heightmapUV + float2( 0,       -yoffset)));
                 h /= 8.0F;
 
                 return PackHeightmap(lerp(height, h, brushStrength));
@@ -192,8 +220,13 @@
 
             float4 PaintSplatAlphamap(v2f i) : SV_Target
             {
-                float brushStrength = BRUSH_STRENGTH * UnpackHeightmap(tex2D(_BrushTex, i.texcoord));
-                float alphaMap = tex2D(_MainTex, i.texcoord).r;
+                float2 brushUV = PaintContextUVToBrushUV(i.pcUV);
+
+                // out of bounds multiplier
+                float oob = all(saturate(brushUV) == brushUV) ? 1.0f : 0.0f;
+
+                float brushStrength = BRUSH_STRENGTH * oob * UnpackHeightmap(tex2D(_BrushTex, brushUV));
+                float alphaMap = tex2D(_MainTex, i.pcUV).r;
                 return ApplyBrush(alphaMap, brushStrength);
             }
 

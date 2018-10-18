@@ -1,99 +1,244 @@
 // Unity built-in shader source. Copyright (c) 2016 Unity Technologies. MIT license (see license.txt)
 
-    Shader "Hidden/TerrainEngine/BrushPreview" {
-
-    Properties { _MainTex ("Texture", any) = "" {} }
-
-    SubShader {
-
+Shader "Hidden/TerrainEngine/BrushPreview"
+{
+    SubShader
+    {
         ZTest Always Cull Back ZWrite Off
         Blend SrcAlpha OneMinusSrcAlpha
+
         CGINCLUDE
+            // Upgrade NOTE: excluded shader from OpenGL ES 2.0 because it uses non-square matrices
+            #pragma exclude_renderers gles
 
             #include "UnityCG.cginc"
-
-            sampler2D _MainTex;
-            float4 _MainTex_TexelSize;      // 1/width, 1/height, width, height
+            #include "TerrainPreview.cginc"
 
             sampler2D _BrushTex;
-            float4 _BrushParams;
-
-            #define BRUSH_STRENGTH      (_BrushParams[0])
-            #define HEIGHT_SCALE        (_BrushParams[1])
-            #define BRUSH_STAMPHEIGHT   (_BrushParams[2])
-
-            float4 _TexScaleOffet;
-
-            struct appdata_t {
-                float4 vertex : POSITION;
-                float2 texcoord : TEXCOORD0;
-            };
-
-            struct v2f {
-                float4 vertex : SV_POSITION;
-                float2 texcoord : TEXCOORD0;
-            };
 
         ENDCG
 
         Pass    // 0
         {
-            Name "DrawMeshPresent"
+            Name "TerrainPreviewProcedural"
 
             CGPROGRAM
             #pragma vertex vert
             #pragma fragment frag
 
+            struct v2f {
+                float4 clipPosition : SV_POSITION;
+                float3 positionWorld : TEXCOORD0;
+                float3 positionWorldOrig : TEXCOORD1;
+                float2 pcPixels : TEXCOORD2;
+                float2 brushUV : TEXCOORD3;
+            };
 
-            v2f vert(appdata_t v)
+            v2f vert(uint vid : SV_VertexID)
             {
-                v2f o;
-                o.texcoord = _TexScaleOffet.xy * v.vertex.xz + _TexScaleOffet.zw;
-                v.vertex.y = HEIGHT_SCALE * UnpackHeightmap(tex2Dlod(_MainTex, float4(o.texcoord, 0, 0)));
-                o.vertex = UnityObjectToClipPos(v.vertex);
+                // build a quad mesh, with one vertex per paint context pixel (pcPixel)
+                float2 pcPixels = BuildProceduralQuadMeshVertex(vid);
 
+                // compute heightmap UV and sample heightmap
+                float2 heightmapUV = PaintContextPixelsToHeightmapUV(pcPixels);
+                float heightmapSample = UnpackHeightmap(tex2Dlod(_Heightmap, float4(heightmapUV, 0, 0)));
+
+                // compute brush UV
+                float2 brushUV = PaintContextPixelsToBrushUV(pcPixels);
+
+                // compute object position (in terrain space) and world position
+                float3 positionObject = PaintContextPixelsToObjectPosition(pcPixels, heightmapSample);
+                float3 positionWorld = TerrainObjectToWorldPosition(positionObject);
+
+                v2f o;
+                o.pcPixels = pcPixels;
+                o.positionWorld = positionWorld;
+                o.positionWorldOrig = positionWorld;
+                o.clipPosition = UnityWorldToClipPos(positionWorld);
+                o.brushUV = brushUV;
                 return o;
             }
 
-            float4 frag(v2f i) : SV_Target
-            {
-                return float4(0.5f,0.5f,1.0f,0.65f)*UnpackHeightmap(tex2D(_BrushTex, i.texcoord));
-            }
-        ENDCG
-        }
-
-
-        Pass    // 1
-            {
-                Name "DrawMeshFuture"
-
-                CGPROGRAM
-                #pragma vertex vert
-                #pragma fragment frag
-
-                sampler2D _GridTexture;
-
-            v2f vert(appdata_t v)
-            {
-                v2f o;
-
-                o.texcoord = _TexScaleOffet.xy * v.vertex.xz + _TexScaleOffet.zw;
-                float height = UnpackHeightmap(tex2Dlod(_MainTex, float4(o.texcoord, 0, 0)));
-                float brushStrength = BRUSH_STRENGTH * UnpackHeightmap(tex2Dlod(_BrushTex, float4(o.texcoord,0,0)));
-                v.vertex.y = HEIGHT_SCALE* clamp((brushStrength+height), 0, 0.5f);
-                o.vertex = UnityObjectToClipPos(v.vertex);
-
-                return o;
-            }
 
             float4 frag(v2f i) : SV_Target
             {
-                float4 color = (BRUSH_STRENGTH < 0) ? float4(0.8f,0.3f,0.3f,0.65f) : float4(1.0f,0.5f,0.5f,0.75f);
-                return color*UnpackHeightmap(tex2D(_BrushTex, i.texcoord));
+                float brushSample = UnpackHeightmap(tex2D(_BrushTex, i.brushUV));
+
+                // out of bounds multiplier
+                float oob = all(saturate(i.brushUV) == i.brushUV) ? 1.0f : 0.0f;
+
+                // brush outline stripe
+                float stripeWidth = 2.0f;       // pixels
+                float stripeLocation = 0.2f;    // at 20% alpha
+                float brushStripe = Stripe(brushSample, stripeLocation, stripeWidth);
+
+                float4 color = float4(0.5f, 0.5f, 1.0f, 1.0f) * saturate(brushStripe + 0.5f * brushSample);
+                color.a = 0.6f * saturate(brushSample * 5.0f);
+                return color * oob;
             }
             ENDCG
         }
 
+        Pass    // 1
+        {
+            Name "TerrainPreviewProceduralDeltaNormals"
+
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+
+            sampler2D _HeightmapOrig;
+
+            struct v2f {
+                float4 clipPosition : SV_POSITION;
+                float3 positionWorld : TEXCOORD0;
+                float3 positionWorldOrig : TEXCOORD1;
+                float2 pcPixels : TEXCOORD2;
+                float2 brushUV : TEXCOORD3;
+            };
+
+            v2f vert(uint vid : SV_VertexID)
+            {
+                // build a quad mesh, with one vertex per paint context pixel (pcPixel)
+                float2 pcPixels = BuildProceduralQuadMeshVertex(vid);
+
+                // compute heightmap UV and sample heightmap
+                float2 heightmapUV = PaintContextPixelsToHeightmapUV(pcPixels);
+                float heightmapSample = UnpackHeightmap(tex2Dlod(_Heightmap, float4(heightmapUV, 0, 0)));
+                float heightmapSampleOrig = UnpackHeightmap(tex2Dlod(_HeightmapOrig, float4(heightmapUV, 0, 0)));
+
+                // compute brush UV
+                float2 brushUV = PaintContextPixelsToBrushUV(pcPixels);
+
+                // compute object position (in terrain space) and world position
+                float3 positionObject = PaintContextPixelsToObjectPosition(pcPixels, heightmapSample);
+                float3 positionWorld = TerrainObjectToWorldPosition(positionObject);
+
+                float3 positionObjectOrig = PaintContextPixelsToObjectPosition(pcPixels, heightmapSampleOrig);
+                float3 positionWorldOrig = TerrainObjectToWorldPosition(positionObjectOrig);
+
+                v2f o;
+                o.pcPixels = pcPixels;
+                o.positionWorld = positionWorld;
+                o.positionWorldOrig = positionWorldOrig;
+                o.clipPosition = UnityWorldToClipPos(positionWorld);
+                o.brushUV = brushUV;
+                return o;
+            }
+
+            float4 frag(v2f i) : SV_Target
+            {
+                float brushSample = UnpackHeightmap(tex2D(_BrushTex, i.brushUV));
+
+                // out of bounds multiplier
+                float oob = all(saturate(i.brushUV) == i.brushUV) ? 1.0f : 0.0f;
+
+                float deltaHeight = abs(i.positionWorld.y - i.positionWorldOrig.y);
+
+                // normal based coloring
+                float3 dx = ddx(i.positionWorld);
+                float3 dy = ddy(i.positionWorld);
+                float3 normal = normalize(cross(dy, dx));
+
+                float3 lightDir = UnityWorldSpaceLightDir(i.positionWorld.xyz);
+
+                float4 color;
+                color.rgb = saturate(normal.xzy * float3(-0.5f, -0.5f, 0.5f) + 0.5f);
+                color.rgb = lerp(color.rgb, float3(1.0f, 1.0f, 1.0f), 0.3f);
+                color.rgb = color.rgb * (0.1f + 0.9f * dot(lightDir, normal));
+                color.a = 0.9f * saturate(0.2f * deltaHeight);
+
+                return color;
+            }
+            ENDCG
+        }
+
+        Pass    // 2
+        {
+            Name "TerrainPreviewProceduralDeltaStripes"
+
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+
+            sampler2D _HeightmapOrig;
+
+            struct v2f {
+                float4 clipPosition : SV_POSITION;
+                float3 positionWorld : TEXCOORD0;
+                float3 positionWorldOrig : TEXCOORD1;
+                float2 pcPixels : TEXCOORD2;
+                float2 brushUV : TEXCOORD3;
+            };
+
+            v2f vert(uint vid : SV_VertexID)
+            {
+                // build a quad mesh, with one vertex per paint context pixel (pcPixel)
+                float2 pcPixels = BuildProceduralQuadMeshVertex(vid);
+
+                // compute heightmap UV and sample heightmap
+                float2 heightmapUV = PaintContextPixelsToHeightmapUV(pcPixels);
+                float heightmapSample = UnpackHeightmap(tex2Dlod(_Heightmap, float4(heightmapUV, 0, 0)));
+                float heightmapSampleOrig = UnpackHeightmap(tex2Dlod(_HeightmapOrig, float4(heightmapUV, 0, 0)));
+
+                // compute brush UV
+                float2 brushUV = PaintContextPixelsToBrushUV(pcPixels);
+
+                // compute object position (in terrain space) and world position
+                float3 positionObject = PaintContextPixelsToObjectPosition(pcPixels, heightmapSample);
+                float3 positionWorld = TerrainObjectToWorldPosition(positionObject);
+
+                float3 positionObjectOrig = PaintContextPixelsToObjectPosition(pcPixels, heightmapSampleOrig);
+                float3 positionWorldOrig = TerrainObjectToWorldPosition(positionObjectOrig);
+
+                v2f o;
+                o.pcPixels = pcPixels;
+                o.positionWorld = positionWorld;
+                o.positionWorldOrig = positionWorldOrig;
+                o.clipPosition = UnityWorldToClipPos(positionWorld);
+                o.brushUV = brushUV;
+                return o;
+            }
+
+            float MultiStripes(in float x, in float freq1, in float freq2)
+            {
+                float2 derivatives = float2(ddx(x), ddy(x));
+                float derivLen = length(derivatives);
+
+                float tweak = 0.5;
+                float sharpen = tweak / max(derivLen, 0.00001f);
+
+                float triwave1 = abs(frac(x * freq1) - 0.5f) - 0.25f;
+                float triwave2 = abs(frac(x * freq2) - 0.5f) - 0.25f;
+
+                float width = 0.95f;
+
+                float result1 = saturate((triwave1 - width * 0.25f) * sharpen / freq1 + 0.75f);
+                float result2 = saturate((triwave2 - width * 0.25f) * sharpen / freq2 + 0.75f);
+
+                return max(result1, result2);
+            }
+
+            float4 frag(v2f i) : SV_Target
+            {
+                float brushSample = UnpackHeightmap(tex2D(_BrushTex, i.brushUV));
+
+                // out of bounds multiplier
+                float oob = all(saturate(i.brushUV) == i.brushUV) ? 1.0f : 0.0f;
+
+                // brush outline stripe
+                float stripeWidth = 1.0f;       // pixels
+                float stripeLocation = 0.2f;    // at 20% alpha
+                float heightStripes = MultiStripes(i.positionWorld.y + 0.25f, 0.0625f, 1.0f);
+                float xStripes = MultiStripes(i.positionWorld.x, 0.03125f, 0.5f);
+                float zStripes = MultiStripes(i.positionWorld.z, 0.03125f, 0.5f);
+
+                float deltaHeight = saturate(abs(i.positionWorld.y - i.positionWorldOrig.y));
+                float4 color = lerp(float4(0.5f, 0.5f, 1.0f, 1.0f), float4(0.5f, 1.0f, 0.5f, 1.0f), deltaHeight);
+                return color * lerp(deltaHeight * 0.5f, (brushSample > 0.0f ? 1.0f : 0.0f), 0.5f * saturate(heightStripes + xStripes + zStripes));
+            }
+            ENDCG
+        }
     }
     Fallback Off
 }

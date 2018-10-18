@@ -18,6 +18,7 @@ struct Input
 
 sampler2D _Control;
 float4 _Control_ST;
+float4 _Control_TexelSize;
 sampler2D _Splat0, _Splat1, _Splat2, _Splat3;
 float4 _Splat0_ST, _Splat1_ST, _Splat2_ST, _Splat3_ST;
 
@@ -95,7 +96,9 @@ void SplatmapMix(Input IN, half4 defaultAlpha, out half4 splat_control, out half
 void SplatmapMix(Input IN, out half4 splat_control, out half weight, out fixed4 mixedDiffuse, inout fixed3 mixedNormal)
 #endif
 {
-    splat_control = tex2D(_Control, IN.tc.xy);
+    // adjust splatUVs so the edges of the terrain tile lie on pixel centers
+    float2 splatUV = (IN.tc.xy * (_Control_TexelSize.zw - 1.0f) + 0.5f) * _Control_TexelSize.xy;
+    splat_control = tex2D(_Control, splatUV);
     weight = dot(splat_control, half4(1,1,1,1));
 
     #if !defined(SHADER_API_MOBILE) && defined(TERRAIN_SPLAT_ADDPASS)
