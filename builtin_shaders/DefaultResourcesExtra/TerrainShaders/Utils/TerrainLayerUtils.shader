@@ -6,7 +6,9 @@
 
     SubShader {
 
-        ZTest Always Cull Off ZWrite Off
+        ZTest Always
+        Cull Off
+        ZWrite Off
 
         CGINCLUDE
 
@@ -21,6 +23,8 @@
         Pass    // Select one channel and copy it into R channel
         {
             Name "Get Terrain Layer Channel"
+
+            BlendOp Max
 
             CGPROGRAM
             #pragma vertex vert
@@ -60,6 +64,9 @@
             sampler2D _AlphaMapTexture;
             sampler2D _OldAlphaMapTexture;
 
+            sampler2D _OriginalTargetAlphaMap;
+            float4 _OriginalTargetAlphaMask;
+
             struct appdata_t {
                 float4 vertex : POSITION;
                 float2 texcoord : TEXCOORD0;
@@ -84,15 +91,26 @@
 
             float4 SetLayer(v2f i) : SV_Target
             {
+                // alpha map we are modifying -- _LayerMask tells us which channel is the target (set to 1.0), non-targets are 0.0
+                // Note: all four channels can be non-targets, as the target may be in a different alpha map texture
                 float4 alphaMap = tex2D(_AlphaMapTexture, i.texcoord2);
-                float oldAlpha = tex2D(_OldAlphaMapTexture, i.texcoord).r;
 
-                float totalAlphaOthers = 1 - oldAlpha;
-                if (totalAlphaOthers > 0.01f)
+                // old alpha of the target channel (according to the current terrain tile)
+                float4 origTargetAlphaMapSample = tex2D(_OriginalTargetAlphaMap, i.texcoord2);
+                float origTargetAlpha = dot(origTargetAlphaMapSample, _OriginalTargetAlphaMask);
+
+                // new alpha of the target channel (according to PaintContext destRenderTexture)
+                float newAlpha = tex2D(_MainTex, i.texcoord).r;
+
+                // not allowed to 'erase' a target channel (cannot reduce it's weight)
+                // this is a requirement to work around edge sync bugs
+                newAlpha = max(newAlpha, origTargetAlpha);
+
+                float oldAlphaOthers = 1 - origTargetAlpha;
+                if (oldAlphaOthers > 0.001f)
                 {
-                    float newAlpha = tex2D(_MainTex, i.texcoord).r;
-                    float4 othersNormalized = alphaMap *(1 - _LayerMask)*(1.0f - newAlpha) / totalAlphaOthers;
-                    return othersNormalized + (_LayerMask * newAlpha);
+                    float4 othersNormalized = alphaMap * (1 - _LayerMask) * (1.0f - newAlpha) / oldAlphaOthers;
+                    return othersNormalized + _LayerMask * newAlpha;
                 }
                 return _LayerMask;
             }
