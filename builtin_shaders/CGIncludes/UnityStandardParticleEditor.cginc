@@ -3,15 +3,15 @@
 #ifndef UNITY_STANDARD_PARTICLE_EDITOR_INCLUDED
 #define UNITY_STANDARD_PARTICLE_EDITOR_INCLUDED
 
+#if _REQUIRE_UV2
+#define _FLIPBOOK_BLENDING 1
+#endif
+
 #include "UnityCG.cginc"
 #include "UnityShaderVariables.cginc"
 #include "UnityStandardConfig.cginc"
 #include "UnityStandardUtils.cginc"
 #include "UnityStandardParticleInstancing.cginc"
-
-#if _REQUIRE_UV2
-    #define _FLIPBOOK_BLENDING 1
-#endif
 
 #ifdef _ALPHATEST_ON
 half        _Cutoff;
@@ -62,7 +62,12 @@ void vertEditorPass(VertexInput v, out VertexOutput o, out float4 opos : SV_POSI
             o.texcoord2AndBlend.z = v.texcoordBlend;
         #endif
     #else
-        o.texcoord = TRANSFORM_TEX(v.texcoords.xy, _MainTex);
+        #ifdef UNITY_PARTICLE_INSTANCING_ENABLED
+            vertInstancingUVs(v.texcoords.xy, o.texcoord);
+            o.texcoord = TRANSFORM_TEX(o.texcoord, _MainTex);
+        #else
+            o.texcoord = TRANSFORM_TEX(v.texcoords.xy, _MainTex);
+        #endif
     #endif
     o.color = v.color;
 }
