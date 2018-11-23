@@ -16,8 +16,6 @@ Shader "Hidden/VideoDecode"
         sampler2D _MainTex;
         sampler2D _SecondTex;
         sampler2D _ThirdTex;
-        float  _AlphaParam;
-        float4 _RightEyeUVOffset;
         float4 _MainTex_TexelSize;
         float4 _MainTex_ST;
 
@@ -44,7 +42,7 @@ Shader "Hidden/VideoDecode"
         {
             v2f o;
             o.vertex = UnityObjectToClipPos(v.vertex);
-            o.texcoord = TRANSFORM_TEX(v.texcoord.xy, _MainTex) + unity_StereoEyeIndex * _RightEyeUVOffset.xy;
+            o.texcoord = TRANSFORM_TEX(v.texcoord.xy, _MainTex);
             return o;
         }
 
@@ -158,7 +156,7 @@ Shader "Hidden/VideoDecode"
         fixed4 fragmentSemiPRGBA(v2f i) : SV_Target
         {
             float maxX = _MainTex_TexelSize.z - 0.5f;
-            float z1 = 2.0f / maxX;
+            float z1 = 1.0f / maxX;
             float tc = 0.5f * i.texcoord.x;
             int rectx = (int)floor(tc * maxX + 0.5f);
             int rectux = (fmod(rectx, 2.0) == 0.0) ? rectx : (rectx - 1);
@@ -189,13 +187,7 @@ Shader "Hidden/VideoDecode"
         fixed4 fragmentRGBANormal(v2f i) : SV_Target
         {
             fixed4 col = tex2D(_MainTex, i.texcoord);
-            return AdjustForColorSpace(fixed4(col.rgb, col.a * _AlphaParam));
-        }
-
-        fixed4 fragmentBlit(v2f i) : SV_Target
-        {
-            fixed4 col = tex2D(_MainTex, i.texcoord);
-            return fixed4(col.rgb, col.a * _AlphaParam);
+            return AdjustForColorSpace(col.rgba);
         }
 
     ENDCG
@@ -238,17 +230,6 @@ Shader "Hidden/VideoDecode"
         // 3
         Pass
         {
-            Name "Composite_RGBA_To_RGBA"
-            Cull Off ZWrite On Blend SrcAlpha OneMinusSrcAlpha
-            CGPROGRAM
-            #pragma vertex vertexDirect
-            #pragma fragment fragmentBlit
-            ENDCG
-        }
-
-        // 4
-        Pass
-        {
             Name "Flip_RGBA_To_RGBA"
             ZTest Always Cull Off ZWrite Off Blend Off
             CGPROGRAM
@@ -257,7 +238,7 @@ Shader "Hidden/VideoDecode"
             ENDCG
         }
 
-        // 5
+        // 4
         Pass
         {
             Name "Flip_RGBASplit_To_RGBA"
@@ -268,7 +249,7 @@ Shader "Hidden/VideoDecode"
             ENDCG
         }
 
-        // 6
+        // 5
         Pass
         {
             Name "Flip_SemiPlanarYCbCr_To_RGB1"
@@ -279,7 +260,7 @@ Shader "Hidden/VideoDecode"
             ENDCG
         }
 
-        // 7
+        // 6
         Pass
         {
             Name "Flip_SemiPlanarYCbCrA_To_RGBA"
@@ -290,7 +271,7 @@ Shader "Hidden/VideoDecode"
             ENDCG
         }
 
-        // 8 - NV12 format: Y plane (_MainTex / 8-bit) followed by interleaved U/V plane (_SecondTex / 8-bit each component) with 2x2 subsampling (so half width/height)
+        // 7 - NV12 format: Y plane (_MainTex / 8-bit) followed by interleaved U/V plane (_SecondTex / 8-bit each component) with 2x2 subsampling (so half width/height)
         Pass
         {
             Name "Flip_NV12_To_RGB1"
@@ -301,7 +282,7 @@ Shader "Hidden/VideoDecode"
             ENDCG
         }
 
-        // 9 - NV12 format, split alpha: YA plane (_MainTex / 8-bit) followed by interleaved U/V plane (_SecondTex / 8-bit each component) with 2x2 subsampling (so half width/height)
+        // 8 - NV12 format, split alpha: YA plane (_MainTex / 8-bit) followed by interleaved U/V plane (_SecondTex / 8-bit each component) with 2x2 subsampling (so half width/height)
         Pass
         {
             Name "Flip_NV12_To_RGBA"

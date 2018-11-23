@@ -26,11 +26,19 @@ Shader "Hidden/TerrainEngine/Splatmap/Standard-BaseGen" {
 
         #include "UnityCG.cginc"
         sampler2D _Control;
+        float4 _Control_ST;
+        float4 _Control_TexelSize;
 
         struct appdata_t {
             float4 vertex : POSITION;
             float2 texcoord : TEXCOORD0;
         };
+
+        float2 ComputeControlUV(float2 uv)
+        {
+            // adjust splatUVs so the edges of the terrain tile lie on pixel centers
+            return (uv * (_Control_TexelSize.zw - 1.0f) + 0.5f) * _Control_TexelSize.xy;
+        }
 
         ENDCG
 
@@ -60,7 +68,6 @@ Shader "Hidden/TerrainEngine/Splatmap/Standard-BaseGen" {
             float _Smoothness2;
             float _Smoothness3;
 
-            float4 _Control_TexelSize;
             float4 _Splat0_ST;
             float4 _Splat1_ST;
             float4 _Splat2_ST;
@@ -79,13 +86,12 @@ Shader "Hidden/TerrainEngine/Splatmap/Standard-BaseGen" {
             {
                 v2f o;
                 o.vertex = UnityObjectToClipPos(v.vertex);
-                // adjust splatUVs so the edges of the terrain tile lie on pixel centers
-                float2 controlUV = (v.texcoord * (_Control_TexelSize.zw - 1.0f) + 0.5f) * _Control_TexelSize.xy;
-                o.texcoord0 = controlUV;
-                o.texcoord1 = TRANSFORM_TEX(v.texcoord, _Splat0);
-                o.texcoord2 = TRANSFORM_TEX(v.texcoord, _Splat1);
-                o.texcoord3 = TRANSFORM_TEX(v.texcoord, _Splat2);
-                o.texcoord4 = TRANSFORM_TEX(v.texcoord, _Splat3);
+                float2 uv = TRANSFORM_TEX(v.texcoord, _Control);
+                o.texcoord0 = ComputeControlUV(uv);
+                o.texcoord1 = TRANSFORM_TEX(uv, _Splat0);
+                o.texcoord2 = TRANSFORM_TEX(uv, _Splat1);
+                o.texcoord3 = TRANSFORM_TEX(uv, _Splat2);
+                o.texcoord4 = TRANSFORM_TEX(uv, _Splat3);
                 return o;
             }
 
@@ -142,7 +148,7 @@ Shader "Hidden/TerrainEngine/Splatmap/Standard-BaseGen" {
             {
                 v2f o;
                 o.vertex = UnityObjectToClipPos(v.vertex);
-                o.texcoord0 = v.texcoord;
+                o.texcoord0 = ComputeControlUV(TRANSFORM_TEX(v.texcoord, _Control));
                 return o;
             }
 
