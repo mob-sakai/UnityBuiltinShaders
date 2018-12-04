@@ -10,7 +10,6 @@ Shader "Hidden/VR/BlitTexArraySlice" {
             #pragma vertex vert
             #pragma fragment frag
             #pragma target 3.5
-            #pragma exclude_renderers vulkan metal
 
             #include "UnityCG.cginc"
 
