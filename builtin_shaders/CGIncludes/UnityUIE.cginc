@@ -175,6 +175,16 @@ void uie_apply_clipping(v2f IN)
 
 #endif // UIE_RECTCLIP_USING_BUFFER
 
+float TestForValue(float value, inout float flags)
+{
+#if SHADER_API_GLES
+    float result = saturate(flags - value + 1.0);
+    flags -= result * value;
+    return result;
+#else
+    return flags == value;
+#endif
+}
 
 v2f uie_std_vert_core(appdata_t v, SkinningData skinningData, ClippingData clippingData)
 {
@@ -182,12 +192,13 @@ v2f uie_std_vert_core(appdata_t v, SkinningData skinningData, ClippingData clipp
     UNITY_SETUP_INSTANCE_ID(v);
     UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(OUT);
 
-    const float flags = v.idsAndFlags.z;
-    const float isText = (flags == 1.0f) ? 1 : 0;
-    const float isTextured = (flags == 2.0f) ? 1 : 0;
-    const float isCustom = (flags == 3.0f) ? 1 : 0;
-    const float isEdge = (flags == 4.0f) ? 1 : 0;
-    const float isSVGGradients = (flags == 5.0f) ? 1 : 0;
+    float flags = v.idsAndFlags.z;
+    // Keep the descending order for GLES2
+    const float isSVGGradients = TestForValue(5.0, flags);
+    const float isEdge = TestForValue(4.0, flags);
+    const float isCustom = TestForValue(3.0, flags);
+    const float isTextured = TestForValue(2.0, flags);
+    const float isText = TestForValue(1.0, flags);
 
     if (isEdge == 1)
     uie_expand_edge_if_necessary(v, skinningData);
