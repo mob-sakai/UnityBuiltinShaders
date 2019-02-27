@@ -119,9 +119,6 @@ v2f vert (float4 vertex : POSITION, float2 texcoord : TEXCOORD0)
     o.texcoord = texcoord.xy;
 #ifdef UNITY_SINGLE_PASS_STEREO
     o.texcoord = TransformStereoScreenSpaceTex(o.texcoord, 1.0f);
-#if UNITY_UV_STARTS_AT_TOP
-    o.texcoord.y = 1-o.texcoord.y;
-#endif
 #endif
     return o;
 }
