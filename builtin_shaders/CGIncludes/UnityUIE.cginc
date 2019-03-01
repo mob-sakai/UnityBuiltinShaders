@@ -61,33 +61,27 @@ static const float kUIEVertexLastFlagValue = 6.0f;
 struct ClippingData { float4 worldRect, viewRect, skinningRect; };  // x=left, y=bottom, z=right, w=top
 struct SkinningData { float4 row0, row1, row2; };
 
-void uie_expand_edge_if_necessary(inout appdata_t v, SkinningData skinningData)
-{
-    float minThickness = max(_1PixelClipWorld.x, _1PixelClipWorld.y);
-
-    float3 inside;
-    inside.x = dot(v.vertex, skinningData.row0);
-    inside.y = dot(v.vertex, skinningData.row1);
-    inside.z = dot(v.vertex, skinningData.row2);
-    inside = UnityObjectToClipPos(inside);
-
-    float3 outside;
-    outside.x = dot(float4(v.uv, v.vertex.z, 1), skinningData.row0);
-    outside.y = dot(float4(v.uv, v.vertex.z, 1), skinningData.row1);
-    outside.z = dot(float4(v.uv, v.vertex.z, 1), skinningData.row2);
-    outside = UnityObjectToClipPos(outside);
-
-    float thickness = length(outside - inside); // In clip space
-    if (thickness < minThickness)
-        v.vertex.xy = v.uv.xy + normalize(v.vertex.xy - v.uv.xy) * _1PixelClipWorld.zw;
-}
-
 float4 skinningToView(float4 pt, SkinningData skinningData)
 {
     pt.x = dot(pt, skinningData.row0);
     pt.y = dot(pt, skinningData.row1);
     pt.z = dot(pt, skinningData.row2);
     return pt;
+}
+
+// Returns the view-space offset that must be applied to the vertex to satisfy a minimum displacement constraint.
+// displacementVector Displacement vector that is embedded in vertex, in vertex-space.
+// minDisplacement    Minimum length of the displacement that must be observed, in pixels.
+float2 uie_get_border_offset(float2 displacementVector, float minDisplacement, SkinningData skinningData)
+{
+    float2 viewVector = skinningToView(float4(displacementVector, 0, 0), skinningData).xy;
+    float2 minViewVector = normalize(viewVector.xy) * _1PixelClipWorld.zw * minDisplacement;
+
+    float2 viewOffset = float2(0, 0);
+    if(dot(viewVector, viewVector) < dot(minViewVector, minViewVector))
+        viewOffset = minViewVector - viewVector;
+
+    return viewOffset;
 }
 
 float4 viewToWorld(float4 pt)
@@ -200,10 +194,14 @@ v2f uie_std_vert_core(appdata_t v, SkinningData skinningData, ClippingData clipp
     const float isTextured = TestForValue(2.0, flags);
     const float isText = TestForValue(1.0, flags);
 
+    float2 viewOffset = float2(0, 0);
     if (isEdge == 1)
-    uie_expand_edge_if_necessary(v, skinningData);
+        viewOffset = uie_get_border_offset(v.uv, 1, skinningData);
 
-    OUT.vertex = skinningToClip(v.vertex, skinningData);
+    v.vertex = skinningToView(v.vertex, skinningData);
+    v.vertex.xy += viewOffset;
+
+    OUT.vertex = mul(UNITY_MATRIX_MVP, float4(v.vertex.xyz, 1));
     OUT.uv = TRANSFORM_TEX(v.uv, _MainTex);
     if (isTextured == 1.0f && isCustom == 0.0f)
         OUT.uv *= _MainTex_TexelSize.xy;
