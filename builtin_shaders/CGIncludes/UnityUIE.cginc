@@ -34,6 +34,8 @@ float4 _CustomTex_ST;
 
 fixed4 _Color;
 float4 _1PixelClipWorld; // xy in clip space, zw in world space
+float4 _Viewport;
+float2 _RenderTargetSize;
 
 struct appdata_t
 {
@@ -100,7 +102,6 @@ float4 skinningToClip(float4 pt, SkinningData skinningData)
     return mul(UNITY_MATRIX_MVP, pt);
 }
 
-
 #ifdef UIE_RECTCLIP_USING_BUFFER
 
 float4 uie_compute_clipping(SkinningData skinningData, ClippingData clippingData)
@@ -158,9 +159,15 @@ float4 uie_compute_clipping(SkinningData skinningData, ClippingData clippingData
 
 void uie_apply_clipping(v2f IN)
 {
-    float2 clipSpacePos = IN.vertex.xy * _1PixelClipWorld.xy - 1;
+#if UNITY_UV_STARTS_AT_TOP
+    float2 v = IN.vertex.xy - float2(_Viewport.x, _RenderTargetSize.y - _Viewport.y - _Viewport.w);
+#else
+    float2 v = IN.vertex.xy - float2(_Viewport.x, _Viewport.y);
+#endif
+    float2 clipSpacePos = v * _1PixelClipWorld.xy - 1;
     float2 minCorner = IN.clipping.xy;
     float2 maxCorner = IN.clipping.zw;
+
     float4 clipValue;
     clipValue.xy = clipSpacePos - minCorner;
     clipValue.zw = maxCorner - clipSpacePos;
