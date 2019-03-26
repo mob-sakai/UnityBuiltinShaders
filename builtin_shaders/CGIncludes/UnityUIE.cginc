@@ -33,7 +33,7 @@ sampler2D _CustomTex;
 float4 _CustomTex_ST;
 
 fixed4 _Color;
-float4 _1PixelClipWorld; // xy in clip space, zw in world space
+float4 _1PixelClipInvView; // xy in clip space, zw inverse in view space
 float4 _Viewport;
 float2 _RenderTargetSize;
 
@@ -72,16 +72,23 @@ float4 skinningToView(float4 pt, SkinningData skinningData)
 }
 
 // Returns the view-space offset that must be applied to the vertex to satisfy a minimum displacement constraint.
-// displacementVector Displacement vector that is embedded in vertex, in vertex-space.
-// minDisplacement    Minimum length of the displacement that must be observed, in pixels.
+// embeddedDisplacement Displacement vector that is embedded in vertex, in vertex-space.
+// minDisplacement      Minimum length of the displacement that must be observed, in pixels.
 float2 uie_get_border_offset(float2 displacementVector, float minDisplacement, SkinningData skinningData)
 {
-    float2 viewVector = skinningToView(float4(displacementVector, 0, 0), skinningData).xy;
-    float2 minViewVector = normalize(viewVector.xy) * _1PixelClipWorld.zw * minDisplacement;
+    // Compute the displacement length in framebuffer space (unit = 1 pixel).
+    float2 viewDisplacement = skinningToView(float4(displacementVector, 0, 0), skinningData).xy;
+    float frameDisplacementLength = length(viewDisplacement * _1PixelClipInvView.zw);
 
-    float2 viewOffset = float2(0, 0);
-    if(dot(viewVector, viewVector) < dot(minViewVector, minViewVector))
-        viewOffset = minViewVector - viewVector;
+    // We need to meet the minimum displacement requirement before rounding so that we can simply add 1 after rounding
+    // if we don't meet it anymore.
+    float newFrameDisplacementLength = max(minDisplacement, frameDisplacementLength);
+    newFrameDisplacementLength = round(newFrameDisplacementLength);
+    newFrameDisplacementLength += step(newFrameDisplacementLength, minDisplacement - 0.001);
+
+    // Convert the resulting displacement into an offset.
+    float changeRatio = newFrameDisplacementLength / (frameDisplacementLength + 0.000001);
+    float2 viewOffset = (changeRatio - 1) * viewDisplacement;
 
     return viewOffset;
 }
@@ -164,7 +171,7 @@ void uie_apply_clipping(v2f IN)
 #else
     float2 v = IN.vertex.xy - float2(_Viewport.x, _Viewport.y);
 #endif
-    float2 clipSpacePos = v * _1PixelClipWorld.xy - 1;
+    float2 clipSpacePos = v * _1PixelClipInvView.xy - 1;
     float2 minCorner = IN.clipping.xy;
     float2 maxCorner = IN.clipping.zw;
 

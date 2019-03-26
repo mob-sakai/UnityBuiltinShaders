@@ -266,6 +266,7 @@ Shader "Nature/SpeedTree"
         }
     }
 
+    Dependency "BillboardShader" = "Nature/SpeedTree Billboard"
     FallBack "Transparent/Cutout/VertexLit"
     CustomEditor "SpeedTreeMaterialInspector"
 }
