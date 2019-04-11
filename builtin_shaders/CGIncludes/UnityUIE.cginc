@@ -27,7 +27,7 @@ sampler2D _CustomTex;
 float4 _CustomTex_ST;
 
 fixed4 _Color;
-float4 _1PixelClipView; // xy in clip space, zw in view space
+float4 _1PixelClipInvView; // xy in clip space, zw inverse in view space
 float4 _PixelClipRect; // In framebuffer space
 
 #ifdef UIE_SKIN_USING_CONSTANTS
@@ -95,24 +95,31 @@ static float3x4 uie_toWorldMat;
 static float4 uie_clipRect;
 
 // Returns the view-space offset that must be applied to the vertex to satisfy a minimum displacement constraint.
-// vertex             Coordinates of the vertex, in vertex-space.
-// displacementVector Displacement vector that is embedded in vertex, in vertex-space.
-// minDisplacement    Minimum length of the displacement that must be observed, in pixels.
-float2 uie_get_border_offset(float4 vertex, float2 displacementVector, float minDisplacement)
+// vertex               Coordinates of the vertex, in vertex-space.
+// embeddedDisplacement Displacement vector that is embedded in vertex, in vertex-space.
+// minDisplacement      Minimum length of the displacement that must be observed, in pixels.
+float2 uie_get_border_offset(float4 vertex, float2 embeddedDisplacement, float minDisplacement)
 {
-    float2 viewVector = mul(uie_toWorldMat, float4(displacementVector, 0, 0)).xy;
-    float2 minViewVector = normalize(viewVector.xy) * _1PixelClipView.zw * minDisplacement;
+    // Compute the displacement length in framebuffer space (unit = 1 pixel).
+    float2 viewDisplacement = mul(uie_toWorldMat, float4(embeddedDisplacement, 0, 0)).xy;
+    float frameDisplacementLength = length(viewDisplacement * _1PixelClipInvView.zw);
 
-    float2 viewOffset = float2(0, 0);
-    if(dot(viewVector, viewVector) < dot(minViewVector, minViewVector))
-        viewOffset = minViewVector - viewVector;
+    // We need to meet the minimum displacement requirement before rounding so that we can simply add 1 after rounding
+    // if we don't meet it anymore.
+    float newFrameDisplacementLength = max(minDisplacement, frameDisplacementLength);
+    newFrameDisplacementLength = round(newFrameDisplacementLength);
+    newFrameDisplacementLength += step(newFrameDisplacementLength, minDisplacement - 0.001);
+
+    // Convert the resulting displacement into an offset.
+    float changeRatio = newFrameDisplacementLength / (frameDisplacementLength + 0.000001);
+    float2 viewOffset = (changeRatio - 1) * viewDisplacement;
 
     return viewOffset;
 }
 
 float2 uie_snap_to_integer_pos(float2 clipSpaceXY)
 {
-    return ((int2)((clipSpaceXY+1)/_1PixelClipView.xy+0.51f)) * _1PixelClipView.xy-1;
+    return ((int2)((clipSpaceXY+1)/_1PixelClipInvView.xy+0.51f)) * _1PixelClipInvView.xy-1;
 }
 
 void uie_fragment_clip(v2f IN)
