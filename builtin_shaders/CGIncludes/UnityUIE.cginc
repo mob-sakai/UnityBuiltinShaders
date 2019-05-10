@@ -9,6 +9,12 @@
     #endif // SHADER_TARGET < 30
 #endif // UIE_SKIN_USING_CONSTANTS
 
+#ifndef UIE_SIMPLE_ATLAS
+    #if SHADER_TARGET < 35
+        #define UIE_SIMPLE_ATLAS
+    #endif // SHADER_TARGET < 35
+#endif // UIE_SIMPLE_ATLAS
+
 // The value below is only used on older shader targets, and should be configurable for the app at hand to be the smallest possible
 #ifndef UIE_SKIN_ELEMS_COUNT_MAX_CONSTANTS
 #define UIE_SKIN_ELEMS_COUNT_MAX_CONSTANTS 20
@@ -16,9 +22,16 @@
 
 #include "UnityCG.cginc"
 
+#ifdef UIE_SIMPLE_ATLAS
 sampler2D _MainTex;
+#else
+Texture2D _MainTex;
+#endif
 float4 _MainTex_ST;
 float4 _MainTex_TexelSize;
+
+SamplerState uie_point_clamp_sampler;
+SamplerState uie_linear_clamp_sampler;
 
 sampler2D _FontTex;
 float4 _FontTex_ST;
@@ -63,7 +76,7 @@ struct v2f
     UNITY_VERTEX_OUTPUT_STEREO
 };
 
-static const float kUIEVertexLastFlagValue = 6.0f; // Keep in track with UIR.VertexFlags
+static const float kUIEVertexLastFlagValue = 7.0f; // Keep in track with UIR.VertexFlags
 
 // Notes on UIElements Spaces (Local, Bone, Group, World and Clip)
 //
@@ -170,11 +183,14 @@ v2f uie_std_vert(appdata_t v)
     uie_vert_load_payload(v);
     float flags = v.xformIDsAndFlags.z;
     // Keep the descending order for GLES2
-    const float isSVGGradients = TestForValue(5.0, flags);
-    const float isEdge = TestForValue(4.0, flags);
-    const float isCustom = TestForValue(3.0, flags);
-    const float isTextured = TestForValue(2.0, flags);
+    const float isSVGGradients = TestForValue(6.0, flags);
+    const float isEdge = TestForValue(5.0, flags);
+    const float isCustomTex = TestForValue(4.0, flags);
+    const float isAtlasTexBilinear = TestForValue(3.0, flags);
+    const float isAtlasTexPoint = TestForValue(2.0, flags);
     const float isText = TestForValue(1.0, flags);
+    const float isAtlasTex = isAtlasTexBilinear + isAtlasTexPoint;
+    const float isSolid = 1 - saturate(isText + isAtlasTex + isCustomTex);
 
     float2 viewOffset = float2(0, 0);
     if (isEdge == 1)
@@ -190,10 +206,15 @@ v2f uie_std_vert(appdata_t v)
         OUT.vertex.xy = uie_snap_to_integer_pos(OUT.vertex.xy);
 
     OUT.uvXY.xy = TRANSFORM_TEX(v.uv, _MainTex);
-    if (isTextured == 1.0f && isCustom == 0.0f)
+    if (isAtlasTex == 1.0f && isCustomTex == 0.0f)
         OUT.uvXY.xy *= _MainTex_TexelSize.xy;
     OUT.color = v.color * _Color;
-    OUT.flags = fixed4(isText, isTextured, isCustom, 1 - saturate(isText + isTextured + isCustom));
+
+#ifdef UIE_SIMPLE_ATLAS
+    OUT.flags = fixed4(isText, isAtlasTex, isCustomTex, isSolid);
+#else
+    OUT.flags = fixed4(isText, isAtlasTexBilinear - isAtlasTexPoint, isCustomTex, isSolid);
+#endif
     OUT.clipRect = uie_clipRect; // In points
 
     return OUT;
@@ -204,17 +225,28 @@ fixed4 uie_std_frag(v2f IN)
     uie_fragment_clip(IN);
 
     // Extract the flags.
-    fixed isText     = IN.flags.x;
-    fixed isTextured = IN.flags.y;
-    fixed isCustom   = IN.flags.z;
-    fixed isSolid    = IN.flags.w;
+    fixed isText             = IN.flags.x;
+#ifdef UIE_SIMPLE_ATLAS
+    fixed isAtlasTex         = IN.flags.y;
+#else
+    fixed isAtlasTexPoint    = saturate(-IN.flags.y);
+    fixed isAtlasTexBilinear = saturate(IN.flags.y);
+#endif
+    fixed isCustomTex        = IN.flags.z;
+    fixed isSolid            = IN.flags.w;
+
     float2 uv = IN.uvXY.xy;
 
-    half4 atlasColor = tex2D(_MainTex, uv) * isTextured;
-    half4 fontColor = half4(1, 1, 1, tex2D(_FontTex, uv).a) * isText;
-    half4 customColor = tex2D(_CustomTex, uv) * isCustom;
+    half4 texColor = (half4)isSolid;
+#ifdef UIE_SIMPLE_ATLAS
+    texColor += tex2D(_MainTex, uv) * isAtlasTex;
+#else
+    texColor += _MainTex.Sample(uie_point_clamp_sampler, uv) * isAtlasTexPoint;
+    texColor += _MainTex.Sample(uie_linear_clamp_sampler, uv) * isAtlasTexBilinear;
+#endif
+    texColor += half4(1, 1, 1, tex2D(_FontTex, uv).a) * isText;
+    texColor += tex2D(_CustomTex, uv) * isCustomTex;
 
-    half4 texColor = (half4)isSolid + atlasColor + fontColor + customColor;
     half4 color = texColor * IN.color;
     return color;
 }

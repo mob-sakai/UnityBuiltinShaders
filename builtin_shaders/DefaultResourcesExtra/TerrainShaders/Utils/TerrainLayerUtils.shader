@@ -96,7 +96,8 @@ Shader "Hidden/TerrainEngine/TerrainLayerUtils" {
                 float4 origAlphaMap = tex2D(_AlphaMapTexture, i.uvTerrain);
 
                 // old alpha of the target channel (according to the current terrain tile)
-                float origTarget = tex2D(_OldAlphaMapTexture, i.uvPC).r;
+                float4 origTargetSample = tex2D(_OriginalTargetAlphaMap, i.uvTerrain);
+                float origTarget = dot(origTargetSample, _OriginalTargetAlphaMask);
 
                 // new alpha of the target channel (according to PaintContext destRenderTexture)
                 float newTarget = tex2D(_MainTex, i.uvPC).r;

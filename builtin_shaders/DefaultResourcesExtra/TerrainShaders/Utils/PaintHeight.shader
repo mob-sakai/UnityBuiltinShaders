@@ -125,10 +125,9 @@
                 {
                     targetHeight = max(height, brushHeight);
                 }
-                targetHeight = clamp(targetHeight, 0.0f, kMaxHeight);          // Keep in valid range (0..kMaxHeight)
-
                 height = lerp(height, targetHeight, BRUSH_OPACITY);
-                return PackHeightmap(height);
+
+                return PackHeightmap(clamp(height, 0.0f, kMaxHeight));
             }
             ENDCG
         }
