@@ -243,6 +243,31 @@
             ENDCG
         }
 
+        Pass    // 5 paint surface mask
+        {
+            Name "Paint Surface Mask"
+
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment PaintSurfaceMask
+
+            float4 PaintSurfaceMask(v2f i) : SV_Target
+            {
+                float2 brushUV = PaintContextUVToBrushUV(i.pcUV);
+
+                // out of bounds multiplier
+                float oob = all(saturate(brushUV) == brushUV) ? 1.0f : 0.0f;
+
+                float brushStrength = BRUSH_STRENGTH * oob;
+
+                brushStrength = UnpackHeightmap(tex2D(_BrushTex, brushUV)) > (1.0f - abs(brushStrength)) ? sign(brushStrength) : 0.0f;
+                float surfaceMask = tex2D(_MainTex, i.pcUV).r;
+                surfaceMask += brushStrength;
+                return surfaceMask;
+            }
+
+            ENDCG
+        }
     }
     Fallback Off
 }
