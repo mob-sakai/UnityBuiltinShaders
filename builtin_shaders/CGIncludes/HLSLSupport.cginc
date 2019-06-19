@@ -273,7 +273,7 @@
 
 #define CBUFFER_START(name) ConstantBuffer name {
 #define CBUFFER_END };
-#elif defined(SHADER_API_D3D11)
+#elif defined(SHADER_API_D3D11) || defined(UNITY_ENABLE_CBUFFER)
 #define CBUFFER_START(name) cbuffer name {
 #define CBUFFER_END };
 #else
