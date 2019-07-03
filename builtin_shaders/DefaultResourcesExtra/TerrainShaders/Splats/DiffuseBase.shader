@@ -4,7 +4,7 @@ Shader "Hidden/TerrainEngine/Splatmap/Diffuse-Base" {
 Properties {
     _Color ("Main Color", Color) = (1,1,1,1)
     _MainTex ("Base (RGB)", 2D) = "white" {}
-    [HideInInspector] _TerrainSurfaceMaskTexture("Surface Mask Map (RGB)", 2D) = "white" {}
+    [HideInInspector] _TerrainHolesTexture("Holes Map (RGB)", 2D) = "white" {}
 }
 SubShader {
     Tags { "RenderType"="Opaque" }
@@ -24,7 +24,7 @@ fixed4 _Color;
 
 void surf (Input IN, inout SurfaceOutput o) {
     #ifdef _ALPHATEST_ON
-        ClipSurfaceMask(IN.tc.xy);
+        ClipHoles(IN.tc.xy);
     #endif
     fixed4 c = tex2D(_MainTex, IN.tc.xy) * _Color;
     o.Albedo = c.rgb;

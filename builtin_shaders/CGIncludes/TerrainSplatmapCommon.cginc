@@ -42,12 +42,12 @@ UNITY_INSTANCING_BUFFER_END(Terrain)
 #endif
 
 #ifdef _ALPHATEST_ON
-    sampler2D _TerrainSurfaceMaskTexture;
+    sampler2D _TerrainHolesTexture;
 
-    void ClipSurfaceMask(float2 uv)
+    void ClipHoles(float2 uv)
     {
-        float surfMask = tex2D(_TerrainSurfaceMaskTexture, uv).r;
-        clip(surfMask == 0.0f ? -1 : 1);
+        float hole = tex2D(_TerrainHolesTexture, uv).r;
+        clip(hole == 0.0f ? -1 : 1);
     }
 #endif
 
@@ -110,7 +110,7 @@ void SplatmapMix(Input IN, out half4 splat_control, out half weight, out fixed4 
 #endif
 {
     #ifdef _ALPHATEST_ON
-        ClipSurfaceMask(IN.tc.xy);
+        ClipHoles(IN.tc.xy);
     #endif
 
     // adjust splatUVs so the edges of the terrain tile lie on pixel centers
