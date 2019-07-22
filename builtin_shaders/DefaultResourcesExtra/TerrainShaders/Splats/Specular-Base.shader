@@ -9,7 +9,7 @@ Shader "Hidden/TerrainEngine/Splatmap/Specular-Base" {
         // used in fallback on old cards
         _Color ("Main Color", Color) = (1,1,1,1)
 
-        [HideInInspector] _TerrainSurfaceMaskTexture("Surface Mask Map (RGB)", 2D) = "white" {}
+        [HideInInspector] _TerrainHolesTexture("Holes Map (RGB)", 2D) = "white" {}
     }
 
     SubShader {
@@ -34,7 +34,7 @@ Shader "Hidden/TerrainEngine/Splatmap/Specular-Base" {
 
         void surf (Input IN, inout SurfaceOutput o) {
             #ifdef _ALPHATEST_ON
-                ClipSurfaceMask(IN.tc.xy);
+                ClipHoles(IN.tc.xy);
             #endif
             fixed4 tex = tex2D(_MainTex, IN.tc.xy);
             o.Albedo = tex.rgb;

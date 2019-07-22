@@ -2,7 +2,7 @@
 
 Shader "Hidden/TerrainEngine/Splatmap/Diffuse-AddPass" {
     Properties{
-        [HideInInspector] _TerrainSurfaceMaskTexture("Surface Mask Map (RGB)", 2D) = "white" {}
+        [HideInInspector] _TerrainHolesTexture("Holes Map (RGB)", 2D) = "white" {}
     }
     CGINCLUDE
         #pragma surface surf Lambert decal:add vertex:SplatmapVert finalcolor:SplatmapFinalColor finalprepass:SplatmapFinalPrepass finalgbuffer:SplatmapFinalGBuffer fullforwardshadows nometa

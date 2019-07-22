@@ -68,6 +68,7 @@ Shader "Hidden/Internal-UIRDefault"
                 #pragma target 4.5
                 #pragma vertex vert
                 #pragma fragment frag
+                #define UIE_SDF_TEXT
                 #include "UnityUIE.cginc"
                 ENDCG
             }
@@ -96,6 +97,7 @@ Shader "Hidden/Internal-UIRDefault"
                 #pragma target 2.0
                 #pragma vertex vert
                 #pragma fragment frag
+                #define UIE_SDF_TEXT
                 #include "UnityUIE.cginc"
                 ENDCG
             }
