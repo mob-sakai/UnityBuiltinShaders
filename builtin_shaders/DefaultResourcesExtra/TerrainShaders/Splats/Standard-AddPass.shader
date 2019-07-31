@@ -2,7 +2,7 @@
 
 Shader "Hidden/TerrainEngine/Splatmap/Standard-AddPass" {
     Properties{
-        [HideInInspector] _TerrainSurfaceMaskTexture("Surface Mask Map (RGB)", 2D) = "white" {}
+        [HideInInspector] _TerrainHolesTexture("Holes Map (RGB)", 2D) = "white" {}
     }
     SubShader {
         Tags {

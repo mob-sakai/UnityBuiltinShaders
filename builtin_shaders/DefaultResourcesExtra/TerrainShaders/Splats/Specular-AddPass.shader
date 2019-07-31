@@ -4,7 +4,7 @@ Shader "Hidden/TerrainEngine/Splatmap/Specular-AddPass" {
     Properties {
         _SpecColor ("Specular Color", Color) = (0.5, 0.5, 0.5, 1)
         [PowerSlider(5.0)] _Shininess ("Shininess", Range (0.03, 1)) = 0.078125
-        [HideInInspector] _TerrainSurfaceMaskTexture("Surface Mask Map (RGB)", 2D) = "white" {}
+        [HideInInspector] _TerrainHolesTexture("Holes Map (RGB)", 2D) = "white" {}
     }
 
     SubShader {

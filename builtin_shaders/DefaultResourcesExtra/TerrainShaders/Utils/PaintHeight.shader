@@ -243,15 +243,15 @@
             ENDCG
         }
 
-        Pass    // 5 paint surface mask
+        Pass    // 5 paint holes
         {
-            Name "Paint Surface Mask"
+            Name "Paint Holes"
 
             CGPROGRAM
             #pragma vertex vert
-            #pragma fragment PaintSurfaceMask
+            #pragma fragment PaintHoles
 
-            float4 PaintSurfaceMask(v2f i) : SV_Target
+            float4 PaintHoles(v2f i) : SV_Target
             {
                 float2 brushUV = PaintContextUVToBrushUV(i.pcUV);
 
@@ -261,9 +261,9 @@
                 float brushStrength = BRUSH_STRENGTH * oob;
 
                 brushStrength = UnpackHeightmap(tex2D(_BrushTex, brushUV)) > (1.0f - abs(brushStrength)) ? sign(brushStrength) : 0.0f;
-                float surfaceMask = tex2D(_MainTex, i.pcUV).r;
-                surfaceMask += brushStrength;
-                return surfaceMask;
+                float holes = tex2D(_MainTex, i.pcUV).r;
+                holes += brushStrength;
+                return holes;
             }
 
             ENDCG
