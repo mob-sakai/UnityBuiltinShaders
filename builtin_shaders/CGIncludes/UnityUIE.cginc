@@ -5,15 +5,27 @@
 
 #ifndef UIE_SKIN_USING_CONSTANTS
     #if SHADER_TARGET < 45
-        #define UIE_SKIN_USING_CONSTANTS
+        #define UIE_SKIN_USING_CONSTANTS 1
+    #else
+        #define UIE_SKIN_USING_CONSTANTS 0
     #endif // SHADER_TARGET < 30
 #endif // UIE_SKIN_USING_CONSTANTS
 
 #ifndef UIE_SIMPLE_ATLAS
     #if SHADER_TARGET < 35
-        #define UIE_SIMPLE_ATLAS
+        #define UIE_SIMPLE_ATLAS 1
+    #else
+        #define UIE_SIMPLE_ATLAS 0
     #endif // SHADER_TARGET < 35
 #endif // UIE_SIMPLE_ATLAS
+
+#ifndef UIE_SHADER_INFO_IN_VS
+    #if SHADER_TARGET >= 30
+        #define UIE_SHADER_INFO_IN_VS 1
+    #else
+        #define UIE_SHADER_INFO_IN_VS 0
+    #endif // SHADER_TARGET >= 30
+#endif // UIE_SHADER_INFO_IN_VS
 
 // The value below is only used on older shader targets, and should be configurable for the app at hand to be the smallest possible
 #ifndef UIE_SKIN_ELEMS_COUNT_MAX_CONSTANTS
@@ -22,7 +34,7 @@
 
 #include "UnityCG.cginc"
 
-#ifdef UIE_SIMPLE_ATLAS
+#if UIE_SIMPLE_ATLAS
 sampler2D _MainTex;
 #else
 Texture2D _MainTex;
@@ -44,11 +56,10 @@ sampler2D _GradientSettingsTex;
 float4 _GradientSettingsTex_ST;
 float4 _GradientSettingsTex_TexelSize;
 
-fixed4 _Color;
 float4 _1PixelClipInvView; // xy in clip space, zw inverse in view space
 float4 _PixelClipRect; // In framebuffer space
 
-#ifdef UIE_SKIN_USING_CONSTANTS
+#if UIE_SKIN_USING_CONSTANTS
 
 CBUFFER_START(UITransforms)
 float4 _Transforms[UIE_SKIN_ELEMS_COUNT_MAX_CONSTANTS * 4]; // 3 float4s map to matrix 3 columns (the projection column is ignored), and a float4 representing a clip rectangle
@@ -67,6 +78,11 @@ struct appdata_t
     float4 color    : COLOR;
     float2 uv       : TEXCOORD0;
     float4 xformIDsAndFlags : TEXCOORD1; // transformID,clipRectID,Flags,SettingIndex
+#ifndef SHADER_API_METAL
+    int2 siUV       : BLENDINDICES; // Address of shader info in the main atlas
+#else // !SHADER_API_METAL
+    uint siUVC      : BLENDINDICES;
+#endif // SHADER_API_METAL
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
@@ -78,10 +94,17 @@ struct v2f
     nointerpolation fixed4 flags : TEXCOORD1;
     nointerpolation fixed3 svgFlags : TEXCOORD2;
     nointerpolation fixed4 clipRect : TEXCOORD3;
+#if !UIE_SHADER_INFO_IN_VS
+    #if UIE_SIMPLE_ATLAS
+    nointerpolation fixed2 uvShaderInfo : TEXCOORD4;
+    #else
+    int2 uvShaderInfo : TEXCOORD4;
+    #endif // UIE_SIMPLE_ATLAS
+#endif // !UIE_SHADER_INFO_IN_VS
     UNITY_VERTEX_OUTPUT_STEREO
 };
 
-static const float kUIEVertexLastFlagValue = 8.0f; // Keep in track with UIR.VertexFlags
+static const float kUIEVertexLastFlagValue = 10.0f; // Keep in track with UIR.VertexFlags
 
 // Notes on UIElements Spaces (Local, Bone, Group, World and Clip)
 //
@@ -116,22 +139,27 @@ static float4 uie_clipRect;
 // vertex               Coordinates of the vertex, in vertex-space.
 // embeddedDisplacement Displacement vector that is embedded in vertex, in vertex-space.
 // minDisplacement      Minimum length of the displacement that must be observed, in pixels.
-float2 uie_get_border_offset(float4 vertex, float2 embeddedDisplacement, float minDisplacement)
+float2 uie_get_border_offset(float4 vertex, float2 embeddedDisplacement, float minDisplacement, bool noShrinkX, bool noShrinkY)
 {
-    // Compute the displacement length in framebuffer space (unit = 1 pixel).
+    // Compute the absolute displacement in framebuffer space (unit = 1 pixel).
     float2 viewDisplacement = mul(uie_toWorldMat, float4(embeddedDisplacement, 0, 0)).xy;
-    float frameDisplacementLength = length(viewDisplacement * _1PixelClipInvView.zw);
+    float2 frameDisplacementAbs = abs(viewDisplacement * _1PixelClipInvView.zw);
 
     // We need to meet the minimum displacement requirement before rounding so that we can simply add 1 after rounding
     // if we don't meet it anymore.
-    float newFrameDisplacementLength = max(minDisplacement, frameDisplacementLength);
-    newFrameDisplacementLength = round(newFrameDisplacementLength);
-    newFrameDisplacementLength += step(newFrameDisplacementLength, minDisplacement - 0.001);
+    float2 newFrameDisplacementAbs = max(minDisplacement.xx, frameDisplacementAbs);
+    float2 newFrameDisplacementAbsBeforeRound = newFrameDisplacementAbs;
+    newFrameDisplacementAbs = round(newFrameDisplacementAbs);
+    if(noShrinkX)
+        newFrameDisplacementAbs.x = max(newFrameDisplacementAbs.x, newFrameDisplacementAbsBeforeRound.x);
+    if(noShrinkY)
+        newFrameDisplacementAbs.y = max(newFrameDisplacementAbs.y, newFrameDisplacementAbsBeforeRound.y);
+    newFrameDisplacementAbs += step(newFrameDisplacementAbs, minDisplacement - 0.001);
 
     // Convert the resulting displacement into an offset.
-    float changeRatio = newFrameDisplacementLength / (frameDisplacementLength + 0.000001);
+    float2 changeRatio = newFrameDisplacementAbs / (frameDisplacementAbs + 0.000001);
+    changeRatio = clamp(changeRatio, 0.01, 100);
     float2 viewOffset = (changeRatio - 1) * viewDisplacement;
-
     return viewOffset;
 }
 
@@ -151,7 +179,7 @@ void uie_fragment_clip(v2f IN)
 
 void uie_vert_load_payload(appdata_t v)
 {
-#ifdef UIE_SKIN_USING_CONSTANTS
+#if UIE_SKIN_USING_CONSTANTS
 
     uie_toWorldMat = float3x4(
         _Transforms[v.xformIDsAndFlags.x * 4 + 0],
@@ -275,8 +303,10 @@ v2f uie_std_vert(appdata_t v)
     uie_vert_load_payload(v);
     float flags = v.xformIDsAndFlags.z;
     // Keep the descending order for GLES2
-    const float isCustomSVGGradients = TestForValue(7.0, flags);
-    const float isSVGGradients = TestForValue(6.0, flags);
+    const float isCustomSVGGradients = TestForValue(9.0, flags);
+    const float isSVGGradients = TestForValue(8.0, flags);
+    const float isEdgeNoShrinkY = TestForValue(7.0, flags);
+    const float isEdgeNoShrinkX = TestForValue(6.0, flags);
     const float isEdge = TestForValue(5.0, flags);
     const float isCustomTex = TestForValue(4.0, flags);
     const float isAtlasTexBilinear = TestForValue(3.0, flags);
@@ -285,9 +315,35 @@ v2f uie_std_vert(appdata_t v)
     const float isAtlasTex = isAtlasTexBilinear + isAtlasTexPoint;
     const float isSolid = 1 - saturate(isText + isAtlasTex + isCustomTex + isSVGGradients + isCustomSVGGradients);
 
+    int2 siUV;
+#ifndef SHADER_API_METAL
+    siUV = v.siUV;
+#else // SHADER_API_METAL
+    siUV.x = v.siUVC & 0xFFFF;
+    siUV.y = (v.siUVC >> 16) & 0xFFFF;
+#endif // SHADER_API_METAL
+
+    float2 uvShaderInfo = (siUV + 0.5f)*_MainTex_TexelSize;
+#if UIE_SHADER_INFO_IN_VS
+    #if UIE_SIMPLE_ATLAS
+    float4 shaderInfo = tex2Dlod(_MainTex, float4(uvShaderInfo.xy, 0, 0));
+    #else // !UIE_SIMPLE_ATLAS
+    float4 shaderInfo = _MainTex.Load(int3(siUV.xy,0));
+    #endif // UIE_SIMPLE_ATLAS
+    v.color.a *= shaderInfo.a;
+#else // !UIE_SHADER_INFO_IN_VS
+    #if UIE_SIMPLE_ATLAS
+    OUT.uvShaderInfo = uvShaderInfo;
+    #else // !UIE_SIMPLE_ATLAS
+    OUT.uvShaderInfo = siUV.xy;
+    #endif // UIE_SIMPLE_ATLAS
+#endif // UIE_SHADER_INFO_IN_VS
+
     float2 viewOffset = float2(0, 0);
-    if (isEdge == 1)
-        viewOffset = uie_get_border_offset(v.vertex, v.uv, 1);
+    if (isEdge == 1 || isEdgeNoShrinkX == 1 || isEdgeNoShrinkY == 1)
+    {
+        viewOffset = uie_get_border_offset(v.vertex, v.uv, 1, isEdgeNoShrinkX == 1, isEdgeNoShrinkY == 1);
+    }
 
     v.vertex.xyz = mul(uie_toWorldMat, v.vertex);
     v.vertex.xy += viewOffset;
@@ -301,11 +357,11 @@ v2f uie_std_vert(appdata_t v)
 #endif
 
     OUT.uvXY.xy = TRANSFORM_TEX(v.uv, _MainTex);
-    if (isAtlasTex == 1.0f && isCustomTex == 0.0f && isSVGGradients == 0.0f && isCustomSVGGradients == 0.0f)
+    if (isAtlasTex == 1.0f)
         OUT.uvXY.xy *= _MainTex_TexelSize.xy;
-    OUT.color = v.color * _Color;
+    OUT.color = v.color;
 
-#ifdef UIE_SIMPLE_ATLAS
+#if UIE_SIMPLE_ATLAS
     OUT.flags = fixed4(isText, isAtlasTex, isCustomTex, isSolid);
 #else
     OUT.flags = fixed4(isText, isAtlasTexBilinear - isAtlasTexPoint, isCustomTex, isSolid);
@@ -322,7 +378,7 @@ fixed4 uie_std_frag(v2f IN)
 
     // Extract the flags.
     fixed isText               = IN.flags.x;
-#ifdef UIE_SIMPLE_ATLAS
+#if UIE_SIMPLE_ATLAS
     fixed isAtlasTex           = IN.flags.y;
 #else
     fixed isAtlasTexPoint      = saturate(-IN.flags.y);
@@ -336,8 +392,17 @@ fixed4 uie_std_frag(v2f IN)
 
     float2 uv = IN.uvXY.xy;
 
+#if !UIE_SHADER_INFO_IN_VS
+#if UIE_SIMPLE_ATLAS
+    float4 shaderInfo = tex2D(_MainTex, IN.uvShaderInfo.xy); // not tex2Dlod because it might not be available on SM2
+#else // !UIE_SIMPLE_ATLAS
+    float4 shaderInfo = _MainTex.Load(int3(IN.uvShaderInfo.xy,0));
+#endif // UIE_SIMPLE_ATLAS
+    IN.color.a *= shaderInfo.a;
+#endif // !UIE_SHADER_INFO_IN_VS
+
     half4 texColor = (half4)isSolid;
-#ifdef UIE_SIMPLE_ATLAS
+#if UIE_SIMPLE_ATLAS
     texColor += tex2D(_MainTex, uv) * isAtlasTex;
 #else
     texColor += _MainTex.Sample(uie_point_clamp_sampler, uv) * isAtlasTexPoint;
@@ -358,7 +423,7 @@ fixed4 uie_std_frag(v2f IN)
         grad.uv *= grad.location.zw;
         grad.uv += grad.location.xy;
 
-#ifdef UIE_SIMPLE_ATLAS
+#if UIE_SIMPLE_ATLAS
         texColor += tex2D(_MainTex, grad.uv) * isSVGGradients;
 #else
         texColor += _MainTex.Sample(uie_linear_clamp_sampler, grad.uv) * isSVGGradients;
