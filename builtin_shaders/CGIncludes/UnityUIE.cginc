@@ -284,14 +284,17 @@ float TestForValue(float value, inout float flags)
 #endif
 }
 
-float sdf(float sdf_sample)
+float sdf(float distanceSample)
 {
-    const float threshold = 0.5;
-    const float smoothness = 0.5;
-    float sdfValue = (sdf_sample - threshold) / (1.0 - threshold);
-    float2 sdfGrad = float2(ddx(sdfValue), ddy(sdfValue));
-    float afwidth = smoothness * length(sdfGrad);
-    return smoothstep(-afwidth, afwidth, sdfValue);
+    float sharpness = 0;
+    float outlineSoftness = 0;
+    float faceDilation = 0;
+
+    float smoothing = fwidth(distanceSample) * (1 - sharpness) + outlineSoftness;
+    float contour = 0.5 - faceDilation * 0.5;
+    float2 edgeRange = float2(contour - smoothing, contour + smoothing);
+
+    return smoothstep (edgeRange.x, edgeRange.y, distanceSample);
 }
 
 v2f uie_std_vert(appdata_t v)
