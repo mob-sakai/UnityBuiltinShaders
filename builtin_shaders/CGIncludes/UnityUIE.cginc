@@ -3,14 +3,6 @@
 #ifndef UNITY_UIE_INCLUDED
 #define UNITY_UIE_INCLUDED
 
-#ifndef UIE_SKIN_USING_CONSTANTS
-    #if SHADER_TARGET < 45
-        #define UIE_SKIN_USING_CONSTANTS 1
-    #else
-        #define UIE_SKIN_USING_CONSTANTS 0
-    #endif // SHADER_TARGET < 30
-#endif // UIE_SKIN_USING_CONSTANTS
-
 #ifndef UIE_SIMPLE_ATLAS
     #if SHADER_TARGET < 35
         #define UIE_SIMPLE_ATLAS 1
@@ -19,15 +11,14 @@
     #endif // SHADER_TARGET < 35
 #endif // UIE_SIMPLE_ATLAS
 
-#ifndef UIE_SHADER_INFO_IN_VS
-    #if SHADER_TARGET >= 30
-        #define UIE_SHADER_INFO_IN_VS 1
-    #else
-        #define UIE_SHADER_INFO_IN_VS 0
-    #endif // SHADER_TARGET >= 30
-#endif // UIE_SHADER_INFO_IN_VS
+#if SHADER_TARGET >= 30
+    #define UIE_SHADER_INFO_IN_VS 1
+#else
+    #define UIE_SHADER_INFO_IN_VS 0
+#endif // SHADER_TARGET >= 30
 
 // The value below is only used on older shader targets, and should be configurable for the app at hand to be the smallest possible
+// The first entry is always the identity matrix
 #ifndef UIE_SKIN_ELEMS_COUNT_MAX_CONSTANTS
 #define UIE_SKIN_ELEMS_COUNT_MAX_CONSTANTS 20
 #endif // UIE_SKIN_ELEMS_COUNT_MAX_CONSTANTS
@@ -56,33 +47,33 @@ sampler2D _GradientSettingsTex;
 float4 _GradientSettingsTex_ST;
 float4 _GradientSettingsTex_TexelSize;
 
+sampler2D _ShaderInfoTex;
+float4 _ShaderInfoTex_TexelSize;
+
 float4 _1PixelClipInvView; // xy in clip space, zw inverse in view space
 float4 _PixelClipRect; // In framebuffer space
 
-#if UIE_SKIN_USING_CONSTANTS
+#if !UIE_SHADER_INFO_IN_VS
 
 CBUFFER_START(UITransforms)
-float4 _Transforms[UIE_SKIN_ELEMS_COUNT_MAX_CONSTANTS * 4]; // 3 float4s map to matrix 3 columns (the projection column is ignored), and a float4 representing a clip rectangle
+float4 _Transforms[UIE_SKIN_ELEMS_COUNT_MAX_CONSTANTS * 3];
 CBUFFER_END
 
-#else // !UIE_SKIN_USING_CONSTANTS
+CBUFFER_START(UIClipRects)
+float4 _ClipRects[UIE_SKIN_ELEMS_COUNT_MAX_CONSTANTS];
+CBUFFER_END
 
-struct Transform3x4 { float4 v0, v1, v2, clipRect; };
-StructuredBuffer<Transform3x4> _TransformsBuffer; // 3 float4s map to matrix 3 columns (the projection column is ignored), and a float4 representing a clip rectangle
-
-#endif // UIE_SKIN_USING_CONSTANTS
+#endif // !UIE_SHADER_INFO_IN_VS
 
 struct appdata_t
 {
     float4 vertex   : POSITION;
     float4 color    : COLOR;
     float2 uv       : TEXCOORD0;
-    float4 xformIDsAndFlags : TEXCOORD1; // transformID,clipRectID,Flags,SettingIndex
-#ifndef SHADER_API_METAL
-    int2 siUV       : BLENDINDICES; // Address of shader info in the main atlas
-#else // !SHADER_API_METAL
-    uint siUVC      : BLENDINDICES;
-#endif // SHADER_API_METAL
+    float4 xformClipPages : TEXCOORD1; // Top-left of xform and clip pages: XY,XY
+    float4 idsFlags : TEXCOORD2; //XYZ (xform,clip,opacity) (W flags)
+    float4 opacityPageSVGSettingIndex : TEXCOORD3; //XY (ZW SVG setting index)
+
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
@@ -93,14 +84,10 @@ struct v2f
     float4 uvXY  : TEXCOORD0; // UV and ZW holds XY position in points
     nointerpolation fixed4 flags : TEXCOORD1;
     nointerpolation fixed3 svgFlags : TEXCOORD2;
-    nointerpolation fixed4 clipRect : TEXCOORD3;
-#if !UIE_SHADER_INFO_IN_VS
-    #if UIE_SIMPLE_ATLAS
-    nointerpolation fixed2 uvShaderInfo : TEXCOORD4;
-    #else
-    int2 uvShaderInfo : TEXCOORD4;
-    #endif // UIE_SIMPLE_ATLAS
-#endif // !UIE_SHADER_INFO_IN_VS
+    nointerpolation fixed4 clipRectOpacityUVs : TEXCOORD3;
+#if UIE_SHADER_INFO_IN_VS
+    nointerpolation fixed4 clipRect : TEXCOORD4; // Clip rect presampled
+#endif // UIE_SHADER_INFO_IN_VS
     UNITY_VERTEX_OUTPUT_STEREO
 };
 
@@ -133,7 +120,6 @@ static const float kUIEVertexLastFlagValue = 10.0f; // Keep in track with UIR.Ve
 // will be identities.
 
 static float3x4 uie_toWorldMat;
-static float4 uie_clipRect;
 
 // Returns the view-space offset that must be applied to the vertex to satisfy a minimum displacement constraint.
 // vertex               Coordinates of the vertex, in vertex-space.
@@ -170,30 +156,59 @@ float2 uie_snap_to_integer_pos(float2 clipSpaceXY)
 
 void uie_fragment_clip(v2f IN)
 {
+    float4 clipRect;
+#if UIE_SHADER_INFO_IN_VS
+    clipRect = IN.clipRect; // Presampled in the vertex shader, and sent down to the fragment shader ready
+#else // !UIE_SHADER_INFO_IN_VS
+    clipRect = _ClipRects[IN.clipRectOpacityUVs.x];
+#endif // UIE_SHADER_INFO_IN_VS
+
     float2 pointPos = IN.uvXY.zw;
     float2 pixelPos = IN.vertex.xy;
-    float2 s = step(IN.clipRect.xy,   pointPos) + step(pointPos, IN.clipRect.zw) +
+    float2 s = step(clipRect.xy,   pointPos) + step(pointPos, clipRect.zw) +
                step(_PixelClipRect.xy, pixelPos)  + step(pixelPos, _PixelClipRect.zw);
     clip(dot(float3(s,1),float3(1,1,-7.95f)));
 }
 
+float2 uie_decode_shader_info_texel_pos(float2 pageXY, float id)
+{
+    const float kShaderInfoPageWidth = 32;
+    const float kShaderInfoPageHeight = 8;
+    id *= 255.0f;
+    pageXY *= 255.0f; // From [0,1] to [0,255]
+    float idX = id % kShaderInfoPageWidth;
+    float idY = (id - idX) / kShaderInfoPageWidth;
+
+    return float2(
+        pageXY.x * kShaderInfoPageWidth + idX,
+        pageXY.y * kShaderInfoPageHeight + idY);
+}
+
 void uie_vert_load_payload(appdata_t v)
 {
-#if UIE_SKIN_USING_CONSTANTS
+#if UIE_SHADER_INFO_IN_VS
+
+    float2 xformTexel = uie_decode_shader_info_texel_pos(v.xformClipPages.xy, v.idsFlags.x);
+    xformTexel.y *= 3.0f; // Because each transform entry is 3 texels high
+
+    float2 row0UV = (xformTexel + float2(0, 0) + 0.5f) * _ShaderInfoTex_TexelSize.xy;
+    float2 row1UV = (xformTexel + float2(0, 1) + 0.5f) * _ShaderInfoTex_TexelSize.xy;
+    float2 row2UV = (xformTexel + float2(0, 2) + 0.5f) * _ShaderInfoTex_TexelSize.xy;
 
     uie_toWorldMat = float3x4(
-        _Transforms[v.xformIDsAndFlags.x * 4 + 0],
-        _Transforms[v.xformIDsAndFlags.x * 4 + 1],
-        _Transforms[v.xformIDsAndFlags.x * 4 + 2]);
-    uie_clipRect = _Transforms[v.xformIDsAndFlags.y * 4 + 3];
+        tex2Dlod(_ShaderInfoTex, float4(row0UV, 0, 0)),
+        tex2Dlod(_ShaderInfoTex, float4(row1UV, 0, 0)),
+        tex2Dlod(_ShaderInfoTex, float4(row2UV, 0, 0)));
 
-#else // !UIE_SKIN_USING_CONSTANTS
+#else // !UIE_SHADER_INFO_IN_VS
 
-    Transform3x4 transform = _TransformsBuffer[v.xformIDsAndFlags.x];
-    uie_toWorldMat = float3x4(transform.v0, transform.v1, transform.v2);
-    uie_clipRect = _TransformsBuffer[v.xformIDsAndFlags.y].clipRect;
+    int xformConstantIndex = (int)(v.idsFlags.x * 255.0f * 3.0f);
+    uie_toWorldMat = float3x4(
+        _Transforms[xformConstantIndex + 0],
+        _Transforms[xformConstantIndex + 1],
+        _Transforms[xformConstantIndex + 2]);
 
-#endif // UIE_SKIN_USING_CONSTANTS
+#endif // UIE_SHADER_INFO_IN_VS
 }
 
 float2 uie_unpack_float2(fixed4 c)
@@ -297,6 +312,20 @@ float sdf(float distanceSample)
     return smoothstep (edgeRange.x, edgeRange.y, distanceSample);
 }
 
+float4 uie_std_vert_shader_info(appdata_t v, out float4 color)
+{
+    color = v.color;
+    const float2 opacityUV = (uie_decode_shader_info_texel_pos(v.opacityPageSVGSettingIndex.xy, v.idsFlags.z) + 0.5f) * _ShaderInfoTex_TexelSize.xy;
+#if UIE_SHADER_INFO_IN_VS
+    const float2 clipRectUV = (uie_decode_shader_info_texel_pos(v.xformClipPages.zw, v.idsFlags.y) + 0.5f) * _ShaderInfoTex_TexelSize.xy;
+    color.a *= tex2Dlod(_ShaderInfoTex, float4(opacityUV, 0, 0)).a;
+#else // !UIE_SHADER_INFO_IN_VS
+    const float2 clipRectUV = float2(v.idsFlags.y * 255.0f, 0.0f);
+#endif // UIE_SHADER_INFO_IN_VS
+
+    return float4(clipRectUV, opacityUV);
+}
+
 v2f uie_std_vert(appdata_t v)
 {
     v2f OUT;
@@ -304,7 +333,7 @@ v2f uie_std_vert(appdata_t v)
     UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(OUT);
 
     uie_vert_load_payload(v);
-    float flags = v.xformIDsAndFlags.z;
+    float flags = v.idsFlags.w*255.0f;
     // Keep the descending order for GLES2
     const float isCustomSVGGradients = TestForValue(9.0, flags);
     const float isSVGGradients = TestForValue(8.0, flags);
@@ -317,30 +346,6 @@ v2f uie_std_vert(appdata_t v)
     const float isText = TestForValue(1.0, flags);
     const float isAtlasTex = isAtlasTexBilinear + isAtlasTexPoint;
     const float isSolid = 1 - saturate(isText + isAtlasTex + isCustomTex + isSVGGradients + isCustomSVGGradients);
-
-    int2 siUV;
-#ifndef SHADER_API_METAL
-    siUV = v.siUV;
-#else // SHADER_API_METAL
-    siUV.x = v.siUVC & 0xFFFF;
-    siUV.y = (v.siUVC >> 16) & 0xFFFF;
-#endif // SHADER_API_METAL
-
-    float2 uvShaderInfo = (siUV + 0.5f)*_MainTex_TexelSize;
-#if UIE_SHADER_INFO_IN_VS
-    #if UIE_SIMPLE_ATLAS
-    float4 shaderInfo = tex2Dlod(_MainTex, float4(uvShaderInfo.xy, 0, 0));
-    #else // !UIE_SIMPLE_ATLAS
-    float4 shaderInfo = _MainTex.Load(int3(siUV.xy,0));
-    #endif // UIE_SIMPLE_ATLAS
-    v.color.a *= shaderInfo.a;
-#else // !UIE_SHADER_INFO_IN_VS
-    #if UIE_SIMPLE_ATLAS
-    OUT.uvShaderInfo = uvShaderInfo;
-    #else // !UIE_SIMPLE_ATLAS
-    OUT.uvShaderInfo = siUV.xy;
-    #endif // UIE_SIMPLE_ATLAS
-#endif // UIE_SHADER_INFO_IN_VS
 
     float2 viewOffset = float2(0, 0);
     if (isEdge == 1 || isEdgeNoShrinkX == 1 || isEdgeNoShrinkY == 1)
@@ -362,15 +367,21 @@ v2f uie_std_vert(appdata_t v)
     OUT.uvXY.xy = TRANSFORM_TEX(v.uv, _MainTex);
     if (isAtlasTex == 1.0f)
         OUT.uvXY.xy *= _MainTex_TexelSize.xy;
-    OUT.color = v.color;
 
 #if UIE_SIMPLE_ATLAS
     OUT.flags = fixed4(isText, isAtlasTex, isCustomTex, isSolid);
 #else
     OUT.flags = fixed4(isText, isAtlasTexBilinear - isAtlasTexPoint, isCustomTex, isSolid);
 #endif
-    OUT.svgFlags = fixed3(isSVGGradients, isCustomSVGGradients, v.xformIDsAndFlags.w);
-    OUT.clipRect = uie_clipRect; // In points
+    float svgSettingsIndex = v.opacityPageSVGSettingIndex.z*(255.0f*255.0f) + v.opacityPageSVGSettingIndex.w*255.0f;
+    OUT.svgFlags = fixed3(isSVGGradients, isCustomSVGGradients, svgSettingsIndex);
+    OUT.color = v.color;
+
+    OUT.clipRectOpacityUVs = uie_std_vert_shader_info(v, OUT.color);
+
+#if UIE_SHADER_INFO_IN_VS
+    OUT.clipRect = tex2Dlod(_ShaderInfoTex, float4(OUT.clipRectOpacityUVs.xy, 0, 0));
+#endif // UIE_SHADER_INFO_IN_VS
 
     return OUT;
 }
@@ -396,12 +407,7 @@ fixed4 uie_std_frag(v2f IN)
     float2 uv = IN.uvXY.xy;
 
 #if !UIE_SHADER_INFO_IN_VS
-#if UIE_SIMPLE_ATLAS
-    float4 shaderInfo = tex2D(_MainTex, IN.uvShaderInfo.xy); // not tex2Dlod because it might not be available on SM2
-#else // !UIE_SIMPLE_ATLAS
-    float4 shaderInfo = _MainTex.Load(int3(IN.uvShaderInfo.xy,0));
-#endif // UIE_SIMPLE_ATLAS
-    IN.color.a *= shaderInfo.a;
+    IN.color.a *= tex2D(_ShaderInfoTex, IN.clipRectOpacityUVs.zw).a;
 #endif // !UIE_SHADER_INFO_IN_VS
 
     half4 texColor = (half4)isSolid;
