@@ -772,7 +772,7 @@
     #define UNITY_DECLARE_DEPTH_TEXTURE(tex) sampler2D_float tex
     #define UNITY_DECLARE_SCREENSPACE_SHADOWMAP(tex) sampler2D tex
     #define UNITY_SAMPLE_SCREEN_SHADOW(tex, uv) tex2Dproj( tex, UNITY_PROJ_COORD(uv) ).r
-    #define UNITY_DECLARE_SCREENSPACE_TEXTURE(tex) sampler2D tex;
+    #define UNITY_DECLARE_SCREENSPACE_TEXTURE(tex) sampler2D_float tex;
     #define UNITY_SAMPLE_SCREENSPACE_TEXTURE(tex, uv) tex2D(tex, uv)
 #endif
 
