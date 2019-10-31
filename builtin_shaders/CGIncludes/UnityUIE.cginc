@@ -91,6 +91,9 @@ struct v2f
     UNITY_VERTEX_OUTPUT_STEREO
 };
 
+static const float kUIEMeshZ = 0.995f; // Keep in track with UIRUtility.k_MeshPosZ
+static const float kUIEMaskZ = -0.995f; // Keep in track with UIRUtility.k_MaskPosZ
+
 static const float kUIEVertexLastFlagValue = 10.0f; // Keep in track with UIR.VertexFlags
 
 // Notes on UIElements Spaces (Local, Bone, Group, World and Clip)
