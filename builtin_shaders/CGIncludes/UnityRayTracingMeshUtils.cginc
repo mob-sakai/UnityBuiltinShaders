@@ -27,23 +27,23 @@
 // v2 = FetchVertex(triangleIndices.z);
 // Interpolate the vertices using the barycentric coordinates available as input to the closesthit or anyhit shaders.
 
-#define MAX_VERTEX_STREAM_COUNT 4
+#define kMaxVertexStreams 8
 
 struct MeshInfo
 {
-    uint indexSize;                                         // 0 when an index buffer is not used, 2 for 16-bit indices or 4 for 32-bit indices.
-    uint vertexSize/*[MAX_VERTEX_STREAM_COUNT]*/;           // The stride between 2 consecutive vertices in the vertex buffer. Only one vertex stream is supported at this moment.
-    uint baseVertex;                                        // A value added to each index before reading a vertex from the vertex buffer.
-    uint indexStart;                                        // The location of the first index to read from the index buffer.
-    uint vertexStart;                                       // Index of the first vertex - used when an index buffer is not used.
+    uint vertexSize[kMaxVertexStreams];                 // The stride between 2 consecutive vertices in the vertex buffer. There is an entry for each vertex stream.
+    uint baseVertex;                                    // A value added to each index before reading a vertex from the vertex buffer.
+    uint vertexStart;
+    uint indexSize;                                     // 0 when an index buffer is not used, 2 for 16-bit indices or 4 for 32-bit indices.
+    uint indexStart;                                    // The location of the first index to read from the index buffer.
 };
 
 struct VertexAttributeInfo
 {
-    uint InputSlot;         // Not supported. Always assumed to be 0.
-    uint Format;
-    uint ByteOffset;
-    uint Dimension;
+    uint Stream;                                        // The stream index used to fetch the vertex attribute. There can be up to kMaxVertexStreams streams.
+    uint Format;                                        // One of the kVertexFormat* values from bellow.
+    uint ByteOffset;                                    // The attribute offset in bytes into the vertex structure.
+    uint Dimension;                                     // The dimension (#channels) of the vertex attribute.
 };
 
 // Valid values for the attributeType parameter in UnityRayTracingFetchVertexAttribute* functions.
@@ -78,7 +78,7 @@ struct VertexAttributeInfo
 StructuredBuffer<MeshInfo>              unity_MeshInfo_RT;
 StructuredBuffer<VertexAttributeInfo>   unity_MeshVertexDeclaration_RT;
 
-ByteAddressBuffer unity_MeshVertexBuffer_RT/*[MAX_VERTEX_STREAM_COUNT]*/;    // Only one vertex stream is supported at this moment.
+ByteAddressBuffer unity_MeshVertexBuffers_RT[kMaxVertexStreams];
 ByteAddressBuffer unity_MeshIndexBuffer_RT;
 
 uint3 UnityRayTracingFetchTriangleIndices(uint primitiveIndex)
@@ -136,17 +136,17 @@ float2 UnityRayTracingFetchVertexAttribute2(uint vertexIndex, uint attributeType
     if (attributeByteOffset == INVALID_VERTEX_ATTRIBUTE_OFFSET || attributeDimension < 2)
         return float2(0, 0);
 
-    const uint vertexAddress    = vertexIndex * meshInfo.vertexSize;
+    const uint vertexAddress    = vertexIndex * meshInfo.vertexSize[vertexDecl.Stream];
     const uint attributeAddress = vertexAddress + attributeByteOffset;
     const uint attributeFormat  = vertexDecl.Format;
 
     if (attributeFormat == kVertexFormatFloat)
     {
-        return asfloat(unity_MeshVertexBuffer_RT.Load2(attributeAddress));
+        return asfloat(unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load2(attributeAddress));
     }
     else if (attributeFormat == kVertexFormatFloat16)
     {
-        const uint twoHalfs = unity_MeshVertexBuffer_RT.Load(attributeAddress);
+        const uint twoHalfs = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load(attributeAddress);
         return float2(f16tof32(twoHalfs), f16tof32(twoHalfs >> 16));
     }
     else
@@ -166,17 +166,17 @@ float3 UnityRayTracingFetchVertexAttribute3(uint vertexIndex, uint attributeType
     if (attributeByteOffset == INVALID_VERTEX_ATTRIBUTE_OFFSET || attributeDimension < 3)
         return float3(0, 0, 0);
 
-    const uint vertexAddress    = vertexIndex * meshInfo.vertexSize;
+    const uint vertexAddress    = vertexIndex * meshInfo.vertexSize[vertexDecl.Stream];
     const uint attributeAddress = vertexAddress + attributeByteOffset;
     const uint attributeFormat  = vertexDecl.Format;
 
     if (attributeFormat == kVertexFormatFloat)
     {
-        return asfloat(unity_MeshVertexBuffer_RT.Load3(attributeAddress));
+        return asfloat(unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load3(attributeAddress));
     }
     else if (attributeFormat == kVertexFormatFloat16)
     {
-        const uint2 fourHalfs = unity_MeshVertexBuffer_RT.Load2(attributeAddress);
+        const uint2 fourHalfs = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load2(attributeAddress);
         return float3(f16tof32(fourHalfs.x), f16tof32(fourHalfs.x >> 16), f16tof32(fourHalfs.y));
     }
     else
@@ -196,17 +196,17 @@ float4 UnityRayTracingFetchVertexAttribute4(uint vertexIndex, uint attributeType
     if (attributeByteOffset == INVALID_VERTEX_ATTRIBUTE_OFFSET || attributeDimension < 4)
         return float4(0, 0, 0, 0);
 
-    const uint vertexAddress    = vertexIndex * meshInfo.vertexSize;
+    const uint vertexAddress    = vertexIndex * meshInfo.vertexSize[vertexDecl.Stream];
     const uint attributeAddress = vertexAddress + attributeByteOffset;
     const uint attributeFormat  = vertexDecl.Format;
 
     if (attributeFormat == kVertexFormatFloat)
     {
-        return asfloat(unity_MeshVertexBuffer_RT.Load4(attributeAddress));
+        return asfloat(unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load4(attributeAddress));
     }
     else if (attributeFormat == kVertexFormatFloat16)
     {
-        const uint2 fourHalfs = unity_MeshVertexBuffer_RT.Load2(attributeAddress);
+        const uint2 fourHalfs = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load2(attributeAddress);
         return float4(f16tof32(fourHalfs.x), f16tof32(fourHalfs.x >> 16), f16tof32(fourHalfs.y), f16tof32(fourHalfs.y >> 16));
     }
     else

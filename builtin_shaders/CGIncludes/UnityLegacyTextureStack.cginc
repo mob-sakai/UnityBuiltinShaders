@@ -7,6 +7,9 @@
 #define GRA_ROW_MAJOR 1
 #define GRA_TEXTURE_ARRAY_SUPPORT 0
 #define GRA_PACK_RESOLVE_OUTPUT 0
+#if SHADER_API_PSSL
+#define GRA_NO_UNORM 1
+#endif
 #include "GraniteShaderLib3.cginc"
 
 // Keep in sync with the TextureStack.hlsl in the SRP repo.
