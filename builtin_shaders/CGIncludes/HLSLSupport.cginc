@@ -563,6 +563,7 @@
 #define VFACE FACE
 #endif
 #if defined(SHADER_API_PSSL)
+#undef VFACE
 #define VFACE S_FRONT_FACE
 #endif
 
