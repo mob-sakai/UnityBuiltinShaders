@@ -71,15 +71,15 @@ CGINCLUDE
         o.color = SHEvalLinearL0L1(normal) + SHEvalLinearL2(normal);
         o.color = (_IsInGammaPipeline > 0.0)?LinearToGammaSpace(o.color):o.color;
 
-        float exposure = tex2Dlod(_Exposure, float4(0.5, 0.5, 0, 0)).r;
-        o.color *= exposure;
-
         // render occluded mixed lights on top of SH
         o.color += Shade4DirLights(
             unity_4LightPosX0, unity_4LightPosY0, unity_4LightPosZ0,
             unity_LightColor0.rgb, unity_LightColor1.rgb, unity_LightColor2.rgb, unity_LightColor3.rgb,
             unity_4LightAtten0,
             v.normal);
+
+        float exposure = tex2Dlod(_Exposure, float4(0.5, 0.5, 0, 0)).r;
+        o.color *= exposure;
 
         return o;
     }

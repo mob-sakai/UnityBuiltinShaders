@@ -18,6 +18,7 @@ Shader "Hidden/Preview Transparent"
 
             #include "UnityCG.cginc"
 
+            #define PREVIEW_TRANSPARANT
             #include "Preview.cginc"
 
             ENDCG

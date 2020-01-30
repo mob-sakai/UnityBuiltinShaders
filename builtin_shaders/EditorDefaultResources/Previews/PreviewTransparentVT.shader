@@ -19,6 +19,7 @@ Shader "Hidden/Preview Transparent VT"
             #include "UnityCG.cginc"
 
             #define VT
+            #define PREVIEW_TRANSPARANT
             #include "Preview.cginc"
 
             ENDCG

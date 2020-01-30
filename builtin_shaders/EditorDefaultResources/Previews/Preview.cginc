@@ -44,7 +44,6 @@ uniform float _Mip;
 
 fixed4 frag(v2f i) : SV_Target
 {
-
 #ifdef VT
     StackInfo info = PrepareStack(i.uv, Stack);
     StackInfo infoLod = PrepareStackLod(i.uv, Stack, _Mip);
@@ -55,7 +54,13 @@ fixed4 frag(v2f i) : SV_Target
 
     if (_Mip >= 0.0) c = cmip;
     if (_ManualTex2SRGB) c.rgb = LinearToGammaSpace(c.rgb);
-    c.a = UNITY_SAMPLE_1CHANNEL(_GUIClipTexture, i.clipUV);
+
+#ifdef PREVIEW_TRANSPARANT
+    c.a *= tex2D(_GUIClipTexture, i.clipUV).a;
+#else
+    c.a = tex2D(_GUIClipTexture, i.clipUV).a;
+#endif
+
     return c;
 }
 
