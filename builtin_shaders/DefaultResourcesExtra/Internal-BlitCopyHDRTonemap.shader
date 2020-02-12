@@ -93,7 +93,7 @@ Shader "Hidden/BlitCopyHDRTonemap" {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
                 // The scene is rendered with linear gamma and Rec.709 primaries. (DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709)
                 float4 scene = UNITY_SAMPLE_SCREENSPACE_TEXTURE(_MainTex, i.texcoord);
-                float3 result = scene.rgb;
+                float3 result = IsGammaSpace() ? float3(GammaToLinearSpaceExact(scene.r), GammaToLinearSpaceExact(scene.g), GammaToLinearSpaceExact(scene.b)) : scene.rgb;
 
                 if (_ColorGamut == kColorGamutSRGB)
                 {
