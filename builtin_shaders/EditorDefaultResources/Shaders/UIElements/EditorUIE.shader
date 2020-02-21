@@ -12,8 +12,6 @@ Shader "Hidden/UIElements/EditorUIE"
 
     CGINCLUDE
 
-    #define UIE_CUSTOM_SHADER
-    #include "UnityUIE.cginc"
     #include "EditorUIE.cginc"
 
     v2f vert(appdata_t v, out float4 clipSpacePos : SV_POSITION) { return uie_std_vert(v, clipSpacePos); }

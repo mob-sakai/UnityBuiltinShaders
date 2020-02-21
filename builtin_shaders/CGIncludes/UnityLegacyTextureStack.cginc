@@ -45,6 +45,8 @@ struct StackInfo
 #define RESOLVE_SCALE_OVERRIDE float2(1,1)
 #endif
 
+StructuredBuffer<GraniteTilesetConstantBuffer> _VTTilesetBuffer;
+
 #define DECLARE_STACK_CB(stackName) \
     float4x4 stackName##_spaceparams[2];\
     float4 stackName##_atlasparams[2];\
@@ -52,19 +54,25 @@ struct StackInfo
 #define DECLARE_STACK_BASE(stackName) \
 UNITY_DECLARE_TEX2D(stackName##_transtab);\
 \
+GraniteTilesetConstantBuffer GetConstantBuffer_##stackName() \
+{ \
+    int idx = (int)stackName##_atlasparams[1].w; \
+    GraniteTilesetConstantBuffer graniteParamBlock; \
+    graniteParamBlock = _VTTilesetBuffer[idx]; \
+    \
+    /* hack resolve scale into constant buffer here */\
+    graniteParamBlock.data[0][2][0] *= RESOLVE_SCALE_OVERRIDE.x; \
+    graniteParamBlock.data[0][3][0] *= RESOLVE_SCALE_OVERRIDE.y; \
+    \
+    return graniteParamBlock; \
+} \
 StackInfo PrepareVT_##stackName(float2 uv)\
     {\
     GraniteStreamingTextureConstantBuffer textureParamBlock;\
     textureParamBlock.data[0] = stackName##_atlasparams[0];\
     textureParamBlock.data[1] = stackName##_atlasparams[1];\
 \
-    /* hack resolve scale into constant buffer here */\
-    stackName##_spaceparams[0][2][0] *= RESOLVE_SCALE_OVERRIDE.x;\
-    stackName##_spaceparams[0][3][0] *= RESOLVE_SCALE_OVERRIDE.y;\
-\
-    GraniteTilesetConstantBuffer graniteParamBlock;\
-    graniteParamBlock.data[0] = stackName##_spaceparams[0];\
-    graniteParamBlock.data[1] = stackName##_spaceparams[1];\
+    GraniteTilesetConstantBuffer graniteParamBlock = GetConstantBuffer_##stackName(); \
 \
     GraniteConstantBuffers grCB;\
     grCB.tilesetBuffer = graniteParamBlock;\
@@ -84,13 +92,7 @@ StackInfo PrepareVTLod_##stackName(float2 uv, float mip) \
     textureParamBlock.data[0] = stackName##_atlasparams[0];\
     textureParamBlock.data[1] = stackName##_atlasparams[1];\
 \
-    /* hack resolve scale into constant buffer here */\
-    stackName##_spaceparams[0][2][0] *= RESOLVE_SCALE_OVERRIDE.x;\
-    stackName##_spaceparams[0][3][0] *= RESOLVE_SCALE_OVERRIDE.y;\
-\
-    GraniteTilesetConstantBuffer graniteParamBlock;\
-    graniteParamBlock.data[0] = stackName##_spaceparams[0];\
-    graniteParamBlock.data[1] = stackName##_spaceparams[1];\
+GraniteTilesetConstantBuffer graniteParamBlock = GetConstantBuffer_##stackName(); \
 \
     GraniteConstantBuffers grCB;\
     grCB.tilesetBuffer = graniteParamBlock;\
@@ -116,13 +118,7 @@ float4 SampleVT_##layerSamplerName(StackInfo info)\
     textureParamBlock.data[0] = stackName##_atlasparams[0];\
     textureParamBlock.data[1] = stackName##_atlasparams[1];\
 \
-    /* hack resolve scale into constant buffer here */\
-    stackName##_spaceparams[0][2][0] *= RESOLVE_SCALE_OVERRIDE.x;\
-    stackName##_spaceparams[0][3][0] *= RESOLVE_SCALE_OVERRIDE.y;\
-\
-    GraniteTilesetConstantBuffer graniteParamBlock;\
-    graniteParamBlock.data[0] = stackName##_spaceparams[0];\
-    graniteParamBlock.data[1] = stackName##_spaceparams[1];\
+    GraniteTilesetConstantBuffer graniteParamBlock = GetConstantBuffer_##stackName(); \
 \
     GraniteConstantBuffers grCB;\
     grCB.tilesetBuffer = graniteParamBlock;\
@@ -146,13 +142,7 @@ float4 SampleVTLod_##layerSamplerName(StackInfo info)\
     textureParamBlock.data[0] = stackName##_atlasparams[0];\
     textureParamBlock.data[1] = stackName##_atlasparams[1];\
 \
-    /* hack resolve scale into constant buffer here */\
-    stackName##_spaceparams[0][2][0] *= RESOLVE_SCALE_OVERRIDE.x;\
-    stackName##_spaceparams[0][3][0] *= RESOLVE_SCALE_OVERRIDE.y;\
-\
-    GraniteTilesetConstantBuffer graniteParamBlock;\
-    graniteParamBlock.data[0] = stackName##_spaceparams[0];\
-    graniteParamBlock.data[1] = stackName##_spaceparams[1];\
+    GraniteTilesetConstantBuffer graniteParamBlock = GetConstantBuffer_##stackName(); \
 \
     GraniteConstantBuffers grCB;\
     grCB.tilesetBuffer = graniteParamBlock;\
@@ -178,13 +168,7 @@ float4 ResolveVT_##stackName(float2 uv)\
     textureParamBlock.data[0] = stackName##_atlasparams[0];\
     textureParamBlock.data[1] = stackName##_atlasparams[1];\
 \
-    /* hack resolve scale into constant buffer here */\
-    stackName##_spaceparams[0][2][0] *= RESOLVE_SCALE_OVERRIDE.x;\
-    stackName##_spaceparams[0][3][0] *= RESOLVE_SCALE_OVERRIDE.y;\
-\
-    GraniteTilesetConstantBuffer graniteParamBlock;\
-    graniteParamBlock.data[0] = stackName##_spaceparams[0];\
-    graniteParamBlock.data[1] = stackName##_spaceparams[1];\
+    GraniteTilesetConstantBuffer graniteParamBlock = GetConstantBuffer_##stackName(); \
 \
     GraniteConstantBuffers grCB;\
     grCB.tilesetBuffer = graniteParamBlock;\

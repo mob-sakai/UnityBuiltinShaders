@@ -17,6 +17,30 @@
     #define UIE_SHADER_INFO_IN_VS 0
 #endif // SHADER_TARGET >= 30
 
+#ifndef UIE_COLORSPACE_GAMMA
+    #ifdef UNITY_COLORSPACE_GAMMA
+        #define UIE_COLORSPACE_GAMMA 1
+    #else
+        #define UIE_COLORSPACE_GAMMA 0
+    #endif // UNITY_COLORSPACE_GAMMA
+#endif // UIE_COLORSPACE_GAMMA
+
+#ifndef UIE_FRAG_T
+    #if UIE_COLORSPACE_GAMMA
+        #define UIE_FRAG_T fixed4
+    #else
+        #define UIE_FRAG_T half4
+    #endif // UIE_COLORSPACE_GAMMA
+#endif // UIE_FRAG_T
+
+#ifndef UIE_V2F_COLOR_T
+    #if UIE_COLORSPACE_GAMMA
+        #define UIE_V2F_COLOR_T fixed4
+    #else
+        #define UIE_V2F_COLOR_T half4
+    #endif // UIE_COLORSPACE_GAMMA
+#endif // UIE_V2F_COLOR_T
+
 // The value below is only used on older shader targets, and should be configurable for the app at hand to be the smallest possible
 // The first entry is always the identity matrix
 #ifndef UIE_SKIN_ELEMS_COUNT_MAX_CONSTANTS
@@ -79,7 +103,7 @@ struct appdata_t
 
 struct v2f
 {
-    fixed4 color    : COLOR;
+    UIE_V2F_COLOR_T color : COLOR;
     float4 uvXY  : TEXCOORD0; // UV and ZW holds XY position in points
     fixed4 flags : TEXCOORD1;
     fixed3 svgFlags : TEXCOORD2;
@@ -315,9 +339,15 @@ float sdf(float distanceSample)
     return smoothstep (edgeRange.x, edgeRange.y, distanceSample);
 }
 
-float4 uie_std_vert_shader_info(appdata_t v, out float4 color)
+float4 uie_std_vert_shader_info(appdata_t v, out UIE_V2F_COLOR_T color)
 {
+#if UIE_COLORSPACE_GAMMA
     color = v.color;
+#else // !UIE_COLORSPACE_GAMMA
+    // Keep this in the VS to ensure that interpolation is performed in the right color space
+    color = UIE_V2F_COLOR_T(GammaToLinearSpace(v.color.rgb), v.color.a);
+#endif // UIE_COLORSPACE_GAMMA
+
     const float2 opacityUV = (uie_decode_shader_info_texel_pos(v.opacityPageSVGSettingIndex.xy, v.idsFlags.z) + 0.5f) * _ShaderInfoTex_TexelSize.xy;
 #if UIE_SHADER_INFO_IN_VS
     const float2 clipRectUV = (uie_decode_shader_info_texel_pos(v.xformClipPages.zw, v.idsFlags.y) + 0.5f) * _ShaderInfoTex_TexelSize.xy;
@@ -380,7 +410,6 @@ v2f uie_std_vert(appdata_t v, out float4 clipSpacePos)
 #endif
     float svgSettingsIndex = v.opacityPageSVGSettingIndex.z*(255.0f*255.0f) + v.opacityPageSVGSettingIndex.w*255.0f;
     OUT.svgFlags = fixed3(isSVGGradients, isCustomSVGGradients, svgSettingsIndex);
-    OUT.color = v.color;
 
     OUT.clipRectOpacityUVs = uie_std_vert_shader_info(v, OUT.color);
 
@@ -391,7 +420,7 @@ v2f uie_std_vert(appdata_t v, out float4 clipSpacePos)
     return OUT;
 }
 
-fixed4 uie_std_frag(v2f IN)
+UIE_FRAG_T uie_std_frag(v2f IN)
 {
     uie_fragment_clip(IN);
 
@@ -415,7 +444,7 @@ fixed4 uie_std_frag(v2f IN)
     IN.color.a *= tex2D(_ShaderInfoTex, IN.clipRectOpacityUVs.zw).a;
 #endif // !UIE_SHADER_INFO_IN_VS
 
-    half4 texColor = (half4)isSolid;
+    UIE_FRAG_T texColor = (UIE_FRAG_T)isSolid;
 #if UIE_SIMPLE_ATLAS
     texColor += tex2D(_MainTex, uv) * isAtlasTex;
 #else
@@ -423,9 +452,9 @@ fixed4 uie_std_frag(v2f IN)
     texColor += _MainTex.Sample(uie_linear_clamp_sampler, uv) * isAtlasTexBilinear;
 #endif
 #ifdef UIE_SDF_TEXT
-    texColor += half4(1, 1, 1, sdf(tex2D(_FontTex, uv).a)) * isText;
+    texColor += UIE_FRAG_T(1, 1, 1, sdf(tex2D(_FontTex, uv).a)) * isText;
 #else
-    texColor += half4(1, 1, 1, tex2D(_FontTex, uv).a) * isText;
+    texColor += UIE_FRAG_T(1, 1, 1, tex2D(_FontTex, uv).a) * isText;
 #endif
     texColor += tex2D(_CustomTex, uv) * isCustomTex;
 
@@ -445,14 +474,14 @@ fixed4 uie_std_frag(v2f IN)
         texColor += tex2D(_CustomTex, grad.uv) * isCustomSVGGradients;
     }
 
-    half4 color = texColor * IN.color;
+    UIE_FRAG_T color = texColor * IN.color;
     return color;
 }
 
 #ifndef UIE_CUSTOM_SHADER
 
 v2f vert(appdata_t v, out float4 clipSpacePos : SV_POSITION) { return uie_std_vert(v, clipSpacePos); }
-fixed4 frag(v2f IN) : SV_Target { return uie_std_frag(IN); }
+UIE_FRAG_T frag(v2f IN) : SV_Target { return uie_std_frag(IN); }
 
 #endif // UIE_CUSTOM_SHADER
 

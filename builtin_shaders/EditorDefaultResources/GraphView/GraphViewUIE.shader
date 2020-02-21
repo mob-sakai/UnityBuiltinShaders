@@ -12,8 +12,7 @@ Shader "Hidden/GraphView/GraphViewUIE"
     }
 
     CGINCLUDE
-    #define UIE_CUSTOM_SHADER
-    #include "UnityUIE.cginc"
+
     #include "..\Shaders\UIElements\EditorUIE.cginc"
 
     float _GraphViewScale;
