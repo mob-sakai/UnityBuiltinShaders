@@ -63,8 +63,8 @@ struct VertexAttributeInfo
 // Supported
 #define kVertexFormatFloat          0
 #define kVertexFormatFloat16        1
-// Not supported
 #define kVertexFormatUNorm8         2
+// Not supported
 #define kVertexFormatSNorm8         3
 #define kVertexFormatUNorm16        4
 #define kVertexFormatSNorm16        5
@@ -179,6 +179,11 @@ float3 UnityRayTracingFetchVertexAttribute3(uint vertexIndex, uint attributeType
         const uint2 fourHalfs = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load2(attributeAddress);
         return float3(f16tof32(fourHalfs.x), f16tof32(fourHalfs.x >> 16), f16tof32(fourHalfs.y));
     }
+    else if (attributeFormat == kVertexFormatUNorm8)
+    {
+        const uint value = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load(attributeAddress);
+        return float3(value & 0xff, (value & 0xff00) >> 8, (value & 0xff0000) >> 16) / 255.0f;
+    }
     else
         // Vertex attribute format not supported.
         return float3(0, 0, 0);
@@ -208,6 +213,11 @@ float4 UnityRayTracingFetchVertexAttribute4(uint vertexIndex, uint attributeType
     {
         const uint2 fourHalfs = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load2(attributeAddress);
         return float4(f16tof32(fourHalfs.x), f16tof32(fourHalfs.x >> 16), f16tof32(fourHalfs.y), f16tof32(fourHalfs.y >> 16));
+    }
+    else if (attributeFormat == kVertexFormatUNorm8)
+    {
+        const uint value = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load(attributeAddress);
+        return float4(value & 0xff, (value & 0xff00) >> 8, (value & 0xff0000) >> 16, (value & 0xff000000) >> 24) / 255.0f;
     }
     else
         // Vertex attribute format not supported.
