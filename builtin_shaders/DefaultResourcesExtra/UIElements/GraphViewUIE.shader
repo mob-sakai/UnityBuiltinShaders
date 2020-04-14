@@ -13,7 +13,7 @@ Shader "Hidden/GraphView/GraphViewUIE"
 
     CGINCLUDE
 
-    #include "..\Shaders\UIElements\EditorUIE.cginc"
+    #include "EditorUIE.cginc"
 
     float _GraphViewScale;
     float _EditorPixelsPerPoint;

@@ -298,7 +298,7 @@ GradientLocation uie_sample_gradient_location(float settingIndex, float2 uv, sam
         uv = float2(uie_radial_address(uv, focus), 0.0);
     }
 
-    int addressing = gradSettings.y * 255;
+    int addressing = round(gradSettings.y * 255);
     uv.x = (addressing == 0) ? fmod(uv.x,1.0f) : uv.x; // Wrap
     uv.x = (addressing == 1) ? max(min(uv.x,1.0f), 0.0f) : uv.x; // Clamp
     float w = fmod(uv.x,2.0f);
