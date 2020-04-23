@@ -6,6 +6,7 @@ Shader "Hidden/Preview Encoded Lightmap RGBM"
         _MainTex ("Texture", Any) = "white" { }
         _Mip ("Mip", Float) = -1.0 // mip level to display; negative does regular sample
         _ColorMask ("Color Mask", Color) = (1, 1, 1, 1)
+        _Exposure ("Exposure", Float) = 0.0
     }
     Subshader
     {
@@ -55,6 +56,7 @@ Shader "Hidden/Preview Encoded Lightmap RGBM"
                 sampler2D _GUIClipTexture;
                 uniform float _Mip;
                 uniform fixed4 _ColorMask;
+                float _Exposure;
 
                 fixed4 frag( v2f i ) : COLOR
                 {
@@ -65,6 +67,7 @@ Shader "Hidden/Preview Encoded Lightmap RGBM"
 
                     fixed4 col = i.color;
                     col.rgb *= lightmap;
+                    col.rgb *= exp2(_Exposure);
                     col.a   *= alpha;
                     clip (col.a - 0.001);
                     return col;

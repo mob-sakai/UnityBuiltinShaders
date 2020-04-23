@@ -6,6 +6,7 @@ Properties {
     _Mip ("Mip", Float) = 0.0 // mip level to display; negative does regular sample
     _Intensity ("Intensity", Float) = 1.0 // lighting probe's intensity
     _SliceIndex ("Slice", Int) = 0
+    _Exposure ("Exposure", Float) = 0.0
 }
 
 SubShader {
@@ -36,6 +37,7 @@ SubShader {
         float _Mip;
         half _Alpha;
         half _Intensity;
+        float _Exposure;
 
        v2f vert (appdata v) {
             v2f o;
@@ -54,6 +56,7 @@ SubShader {
             if (_Mip >= 0.0)
                 c = cmip;
             c.rgb = DecodeHDR (c, _MainTex_HDR) * _Intensity;
+            c.rgb *= exp2(_Exposure);
             c = lerp (c, c.aaaa, _Alpha);
             return c;
         }

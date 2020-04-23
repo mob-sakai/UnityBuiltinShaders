@@ -39,6 +39,7 @@
 #define UNITY_SUPPORT_DEPTH_FETCH 1
 #endif
 
+#if !defined(UNITY_COMPILER_DXC)
 #if defined(UNITY_FRAMEBUFFER_FETCH_AVAILABLE) && defined(UNITY_FRAMEBUFFER_FETCH_ENABLED) && defined(UNITY_COMPILER_HLSLCC)
 // In the fragment shader, setting inout <type> var : SV_Target would result to
 // compiler error, unless SV_Target is defined to COLOR semantic for compatibility
@@ -103,6 +104,8 @@
 #   endif
 #endif
 
+#endif // !defined(UNITY_COMPILER_DXC)
+
 #if (defined(SHADER_API_GLES3) && !defined(SHADER_API_DESKTOP)) || defined(SHADER_API_GLES) || defined(SHADER_API_N3DS)
     #define UNITY_ALLOWED_MRT_COUNT 4
 #else
@@ -123,6 +126,47 @@
 #pragma warning (disable : 3206) // implicit truncation of vector type
 #endif
 
+// DXC no longer supports DX9-style HLSL syntax of sampler2D, tex2D and friends.
+// Emulate those using our own small structs & functions that have a combined sampler & texture.
+#if defined(UNITY_COMPILER_DXC) && !defined(DXC_SAMPLER_COMPATIBILITY)
+#define DXC_SAMPLER_COMPATIBILITY 1
+struct sampler1D            { Texture1D t; SamplerState s; };
+struct sampler2D            { Texture2D t; SamplerState s; };
+struct sampler3D            { Texture3D t; SamplerState s; };
+struct samplerCUBE          { TextureCube t; SamplerState s; };
+
+float4 tex1D(sampler1D x, float v)              { return x.t.Sample(x.s, v); }
+float4 tex2D(sampler2D x, float2 v)             { return x.t.Sample(x.s, v); }
+float4 tex3D(sampler3D x, float3 v)             { return x.t.Sample(x.s, v); }
+float4 texCUBE(samplerCUBE x, float3 v)         { return x.t.Sample(x.s, v); }
+
+float4 tex1Dbias(sampler1D x, in float4 t)              { return x.t.SampleBias(x.s, t.x, t.w); }
+float4 tex2Dbias(sampler2D x, in float4 t)              { return x.t.SampleBias(x.s, t.xy, t.w); }
+float4 tex3Dbias(sampler3D x, in float4 t)              { return x.t.SampleBias(x.s, t.xyz, t.w); }
+float4 texCUBEbias(samplerCUBE x, in float4 t)          { return x.t.SampleBias(x.s, t.xyz, t.w); }
+
+float4 tex1Dlod(sampler1D x, in float4 t)           { return x.t.SampleLevel(x.s, t.x, t.w); }
+float4 tex2Dlod(sampler2D x, in float4 t)           { return x.t.SampleLevel(x.s, t.xy, t.w); }
+float4 tex3Dlod(sampler3D x, in float4 t)           { return x.t.SampleLevel(x.s, t.xyz, t.w); }
+float4 texCUBElod(samplerCUBE x, in float4 t)       { return x.t.SampleLevel(x.s, t.xyz, t.w); }
+
+float4 tex1Dgrad(sampler1D x, float t, float dx, float dy)              { return x.t.SampleGrad(x.s, t, dx, dy); }
+float4 tex2Dgrad(sampler2D x, float2 t, float2 dx, float2 dy)           { return x.t.SampleGrad(x.s, t, dx, dy); }
+float4 tex3Dgrad(sampler3D x, float3 t, float3 dx, float3 dy)           { return x.t.SampleGrad(x.s, t, dx, dy); }
+float4 texCUBEgrad(samplerCUBE x, float3 t, float3 dx, float3 dy)       { return x.t.SampleGrad(x.s, t, dx, dy); }
+
+float4 tex1D(sampler1D x, float t, float dx, float dy)              { return x.t.SampleGrad(x.s, t, dx, dy); }
+float4 tex2D(sampler2D x, float2 t, float2 dx, float2 dy)           { return x.t.SampleGrad(x.s, t, dx, dy); }
+float4 tex3D(sampler3D x, float3 t, float3 dx, float3 dy)           { return x.t.SampleGrad(x.s, t, dx, dy); }
+float4 texCUBE(samplerCUBE x, float3 t, float3 dx, float3 dy)       { return x.t.SampleGrad(x.s, t, dx, dy); }
+
+float4 tex1Dproj(sampler1D s, in float2 t)              { return tex1D(s, t.x / t.y); }
+float4 tex1Dproj(sampler1D s, in float4 t)              { return tex1D(s, t.x / t.w); }
+float4 tex2Dproj(sampler2D s, in float3 t)              { return tex2D(s, t.xy / t.z); }
+float4 tex2Dproj(sampler2D s, in float4 t)              { return tex2D(s, t.xy / t.w); }
+float4 tex3Dproj(sampler3D s, in float4 t)              { return tex3D(s, t.xyz / t.w); }
+float4 texCUBEproj(samplerCUBE s, in float4 t)          { return texCUBE(s, t.xyz / t.w); }
+#endif
 
 // Define "fixed" precision to be half on non-GLSL platforms,
 // and sampler*_prec to be just simple samplers.
@@ -748,6 +792,19 @@
     #define UNITY_SAMPLE_SCREEN_SHADOW(tex, uv) tex2Dproj( tex, UNITY_PROJ_COORD(uv) ).r
     #define UNITY_DECLARE_SCREENSPACE_TEXTURE(tex) sampler2D_float tex;
     #define UNITY_SAMPLE_SCREENSPACE_TEXTURE(tex, uv) tex2D(tex, uv)
+#endif
+
+// Vulkan SwapChain preTransform
+#define UNITY_DISPLAY_ORIENTATION_PRETRANSFORM_0   0
+#define UNITY_DISPLAY_ORIENTATION_PRETRANSFORM_90  1
+#define UNITY_DISPLAY_ORIENTATION_PRETRANSFORM_180 2
+#define UNITY_DISPLAY_ORIENTATION_PRETRANSFORM_270 3
+
+#ifdef UNITY_PRETRANSFORM_TO_DISPLAY_ORIENTATION
+    cbuffer UnityDisplayOrientationPreTransformData { int UnityDisplayOrientationPreTransform; };
+#   define UNITY_DISPLAY_ORIENTATION_PRETRANSFORM UnityDisplayOrientationPreTransform
+#else
+#   define UNITY_DISPLAY_ORIENTATION_PRETRANSFORM UNITY_DISPLAY_ORIENTATION_PRETRANSFORM_0
 #endif
 
 #endif // HLSL_SUPPORT_INCLUDED
