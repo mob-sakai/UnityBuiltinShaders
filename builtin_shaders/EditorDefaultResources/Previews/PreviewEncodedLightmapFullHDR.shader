@@ -5,6 +5,7 @@ Shader "Hidden/Preview Encoded Lightmap HDR"
     Properties {
         _MainTex ("Texture", Any) = "white" { }
         _Mip ("Mip", Float) = -1.0 // mip level to display; negative does regular sample
+        _Exposure ("Exposure", Float) = 0.0
     }
     Subshader
     {
@@ -53,6 +54,8 @@ Shader "Hidden/Preview Encoded Lightmap HDR"
                 sampler2D _MainTex;
                 sampler2D _GUIClipTexture;
                 uniform float _Mip;
+                float _Exposure;
+
                 fixed4 frag( v2f i ) : COLOR
                 {
                     fixed4 lmc = tex2D(_MainTex, i._uv0), lmcmip = tex2Dlod(_MainTex, float4(i._uv0.x, i._uv0.y, 0, _Mip));
@@ -61,6 +64,7 @@ Shader "Hidden/Preview Encoded Lightmap HDR"
 
                     fixed4 col = i.color;
                     col.rgb *= lmc;
+                    col.rgb *= exp2(_Exposure);
                     col.a   *= alpha;
                     clip (col.a - 0.001);
                     return col;
