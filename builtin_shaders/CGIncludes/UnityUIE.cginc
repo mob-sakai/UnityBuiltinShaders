@@ -162,7 +162,7 @@ float2 uie_get_border_offset(float4 vertex, float2 embeddedDisplacement, float m
     // if we don't meet it anymore.
     float2 newFrameDisplacementAbs = max(minDisplacement.xx, frameDisplacementAbs);
     float2 newFrameDisplacementAbsBeforeRound = newFrameDisplacementAbs;
-    newFrameDisplacementAbs = round(newFrameDisplacementAbs);
+    newFrameDisplacementAbs = round(newFrameDisplacementAbs + 0.02);
     if(noShrinkX)
         newFrameDisplacementAbs.x = max(newFrameDisplacementAbs.x, newFrameDisplacementAbsBeforeRound.x);
     if(noShrinkY)
@@ -178,7 +178,12 @@ float2 uie_get_border_offset(float4 vertex, float2 embeddedDisplacement, float m
 
 float2 uie_snap_to_integer_pos(float2 clipSpaceXY)
 {
-    return ((int2)((clipSpaceXY+1)/_1PixelClipInvView.xy+0.51f)) * _1PixelClipInvView.xy-1;
+    // Convert from clip space to framebuffer space (unit = 1 pixel).
+    float2 pixelPos = (clipSpaceXY + 1) / _1PixelClipInvView.xy;
+    // Add an offset before rounding to avoid half which is very common to land onto.
+    float2 roundedPixelPos = round(pixelPos + 0.1527);
+    // Go back to clip space.
+    return roundedPixelPos * _1PixelClipInvView.xy - 1;
 }
 
 void uie_fragment_clip(v2f IN)
