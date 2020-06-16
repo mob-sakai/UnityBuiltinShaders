@@ -43,7 +43,7 @@ Shader "UI/DefaultETC1"
         Lighting Off
         ZWrite Off
         ZTest [unity_GUIZTestMode]
-        Blend SrcAlpha OneMinusSrcAlpha
+        Blend One OneMinusSrcAlpha
         ColorMask [_ColorMask]
 
         Pass
@@ -124,6 +124,7 @@ Shader "UI/DefaultETC1"
                 clip (color.a - 0.001);
                 #endif
 
+                color.rgb *= color.a;
                 return color;
             }
         ENDCG

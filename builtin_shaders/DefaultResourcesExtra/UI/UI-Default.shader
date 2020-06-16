@@ -42,7 +42,7 @@ Shader "UI/Default"
         Lighting Off
         ZWrite Off
         ZTest [unity_GUIZTestMode]
-        Blend SrcAlpha OneMinusSrcAlpha
+        Blend One OneMinusSrcAlpha
         ColorMask [_ColorMask]
 
         Pass
@@ -118,6 +118,8 @@ Shader "UI/Default"
                 #ifdef UNITY_UI_ALPHACLIP
                 clip (color.a - 0.001);
                 #endif
+
+                color.rgb *= color.a;
 
                 return color;
             }
