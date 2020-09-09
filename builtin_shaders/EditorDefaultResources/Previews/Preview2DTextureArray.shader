@@ -9,6 +9,7 @@ Shader "Hidden/Preview 2D Texture Array"
         _Mip ("Mip level", Int) = 0
         _ToSRGB ("", Int) = 0
         _IsNormalMap ("", Int) = 0
+        _Exposure("Exposure", Float) = 0.0
     }
     Subshader {
         Pass
@@ -26,8 +27,10 @@ Shader "Hidden/Preview 2D Texture Array"
             };
             int _SliceIndex;
             int _Mip;
-            int _ColorMask;
+            int _ColorMaskBits; //Keep the name different from _ColorMask as EditorGUI.DrawPreviewTexture will otherwise set it to a value that might not match the logic in this file
             int _IsNormalMap;
+            float _Exposure;
+
             v2f vert (float4 v : POSITION, float2 t : TEXCOORD0)
             {
                 v2f o;
@@ -45,13 +48,16 @@ Shader "Hidden/Preview 2D Texture Array"
                     col.rgb = 0.5f + 0.5f * UnpackNormal(col);
                     col.a = 1;
                 }
+
+                col.rgb *= exp2(_Exposure);
+
                 if (_ToSRGB)
                     col.rgb = LinearToGammaSpace(col.rgb);
 
-                if (_ColorMask == 1) { col.gb = 0; col.a = 1; }
-                if (_ColorMask == 2) { col.rb = 0; col.a = 1; }
-                if (_ColorMask == 4) { col.rg = 0; col.a = 1; }
-                if (_ColorMask == 8) { col.rgb = col.a; col.a = 1; }
+                if (_ColorMaskBits == 1) { col.gb = 0; col.a = 1; }
+                if (_ColorMaskBits == 2) { col.rb = 0; col.a = 1; }
+                if (_ColorMaskBits == 4) { col.rg = 0; col.a = 1; }
+                if (_ColorMaskBits == 8) { col.rgb = col.a; col.a = 1; }
                 return col;
             }
             ENDCG
