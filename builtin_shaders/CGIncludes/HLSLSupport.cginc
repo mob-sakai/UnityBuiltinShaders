@@ -168,16 +168,22 @@ float4 tex3Dproj(sampler3D s, in float4 t)              { return tex3D(s, t.xyz 
 float4 texCUBEproj(samplerCUBE s, in float4 t)          { return texCUBE(s, t.xyz / t.w); }
 #endif
 
+// Ensure broader support by overriding half into min16float
+#if defined(UNITY_UNIFIED_SHADER_PRECISION_MODEL) && (defined(UNITY_COMPILER_HLSL) || defined(UNITY_COMPILER_DXC))
+#define UNITY_FIXED_IS_HALF 1
+#define half min16float
+#define half2 min16float2
+#define half3 min16float3
+#define half4 min16float4
+#define half2x2 min16float2x2
+#define half3x3 min16float3x3
+#define half4x4 min16float4x4
+#endif
+
 // Define "fixed" precision to be half on non-GLSL platforms,
 // and sampler*_prec to be just simple samplers.
 #if !defined(SHADER_API_GLES) && !defined(SHADER_API_PSSL) && !defined(SHADER_API_GLES3) && !defined(SHADER_API_VULKAN) && !defined(SHADER_API_METAL) && !defined(SHADER_API_SWITCH)
-#define fixed half
-#define fixed2 half2
-#define fixed3 half3
-#define fixed4 half4
-#define fixed4x4 half4x4
-#define fixed3x3 half3x3
-#define fixed2x2 half2x2
+#define UNITY_FIXED_IS_HALF 1
 #define sampler2D_half sampler2D
 #define sampler2D_float sampler2D
 #define samplerCUBE_half samplerCUBE
@@ -198,16 +204,10 @@ float4 texCUBEproj(samplerCUBE s, in float4 t)          { return texCUBE(s, t.xy
 #define Texture3D_half Texture3D
 #endif
 
-#if defined(SHADER_API_GLES) || defined(SHADER_API_GLES3) || (defined(SHADER_API_MOBILE) && (defined(SHADER_API_METAL) || defined(SHADER_API_VULKAN))) || defined(SHADER_API_SWITCH)
+#if !defined(UNITY_UNIFIED_SHADER_PRECISION_MODEL) && (defined(SHADER_API_GLES) || defined(SHADER_API_GLES3) || (defined(SHADER_API_MOBILE) && (defined(SHADER_API_METAL) || defined(SHADER_API_VULKAN))) || defined(SHADER_API_SWITCH))
 // with HLSLcc, use DX11.1 partial precision for translation
 // we specifically define fixed to be float16 (same as half) as all new GPUs seems to agree on float16 being minimal precision float
-#define fixed min16float
-#define fixed2 min16float2
-#define fixed3 min16float3
-#define fixed4 min16float4
-#define fixed4x4 min16float4x4
-#define fixed3x3 min16float3x3
-#define fixed2x2 min16float2x2
+#define UNITY_FIXED_IS_HALF 1
 #define half min16float
 #define half2 min16float2
 #define half3 min16float3
@@ -217,7 +217,7 @@ float4 texCUBEproj(samplerCUBE s, in float4 t)          { return texCUBE(s, t.xy
 #define half4x4 min16float4x4
 #endif
 
-#if (!defined(SHADER_API_MOBILE) && (defined(SHADER_API_METAL) || defined(SHADER_API_VULKAN)))
+#if !defined(UNITY_UNIFIED_SHADER_PRECISION_MODEL) && ((!defined(SHADER_API_MOBILE) && (defined(SHADER_API_METAL) || defined(SHADER_API_VULKAN))))
 #define fixed float
 #define fixed2 float2
 #define fixed3 float3
@@ -232,6 +232,16 @@ float4 texCUBEproj(samplerCUBE s, in float4 t)          { return texCUBE(s, t.xy
 #define half2x2 float2x2
 #define half3x3 float3x3
 #define half4x4 float4x4
+#endif
+
+#if defined(UNITY_FIXED_IS_HALF)
+#define fixed half
+#define fixed2 half2
+#define fixed3 half3
+#define fixed4 half4
+#define fixed4x4 half4x4
+#define fixed3x3 half3x3
+#define fixed2x2 half2x2
 #endif
 
 // Define min16float/min10float to be half/fixed on non-D3D11 platforms.
