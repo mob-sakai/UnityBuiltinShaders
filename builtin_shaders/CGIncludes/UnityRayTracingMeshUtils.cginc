@@ -81,6 +81,15 @@ StructuredBuffer<VertexAttributeInfo>   unity_MeshVertexDeclaration_RT;
 ByteAddressBuffer unity_MeshVertexBuffers_RT[kMaxVertexStreams];
 ByteAddressBuffer unity_MeshIndexBuffer_RT;
 
+static float4 unity_VertexChannelMask_RT[5] =
+{
+    float4(0, 0, 0, 0),
+    float4(1, 0, 0, 0),
+    float4(1, 1, 0, 0),
+    float4(1, 1, 1, 0),
+    float4(1, 1, 1, 1)
+};
+
 // A normalized short (16-bit signed integer) is encode into data. Returns a float in the range [-1, 1].
 float DecodeSNorm16(uint data)
 {
@@ -144,7 +153,7 @@ float2 UnityRayTracingFetchVertexAttribute2(uint vertexIndex, uint attributeType
     const uint attributeByteOffset  = vertexDecl.ByteOffset;
     const uint attributeDimension   = vertexDecl.Dimension;
 
-    if (attributeByteOffset == INVALID_VERTEX_ATTRIBUTE_OFFSET || attributeDimension < 2)
+    if (attributeByteOffset == INVALID_VERTEX_ATTRIBUTE_OFFSET || attributeDimension > 4)
         return float2(0, 0);
 
     const uint vertexSize       = unity_MeshInfo_RT[0].vertexSize[vertexDecl.Stream];
@@ -152,32 +161,35 @@ float2 UnityRayTracingFetchVertexAttribute2(uint vertexIndex, uint attributeType
     const uint attributeAddress = vertexAddress + attributeByteOffset;
     const uint attributeFormat  = vertexDecl.Format;
 
+    float2 value = float2(0, 0);
+
+    ByteAddressBuffer vertexBuffer = unity_MeshVertexBuffers_RT[NonUniformResourceIndex(vertexDecl.Stream)];
+
     if (attributeFormat == kVertexFormatFloat)
     {
-        return asfloat(unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load2(attributeAddress));
+        value = asfloat(vertexBuffer.Load2(attributeAddress));
     }
     else if (attributeFormat == kVertexFormatFloat16)
     {
-        const uint twoHalfs = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load(attributeAddress);
-        return float2(f16tof32(twoHalfs), f16tof32(twoHalfs >> 16));
+        const uint twoHalfs = vertexBuffer.Load(attributeAddress);
+        value = float2(f16tof32(twoHalfs), f16tof32(twoHalfs >> 16));
     }
     else if (attributeFormat == kVertexFormatSNorm16)
     {
-        const uint twoShorts = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load(attributeAddress);
+        const uint twoShorts = vertexBuffer.Load(attributeAddress);
         const float x = DecodeSNorm16(twoShorts & 0xffff);
         const float y = DecodeSNorm16((twoShorts & 0xffff0000) >> 16);
-        return float2(x, y);
+        value = float2(x, y);
     }
     else if (attributeFormat == kVertexFormatUNorm16)
     {
-        const uint twoShorts = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load(attributeAddress);
+        const uint twoShorts = vertexBuffer.Load(attributeAddress);
         const float x = (twoShorts & 0xffff) / float(0xffff);
         const float y = ((twoShorts & 0xffff0000) >> 16) / float(0xffff);
-        return float2(x, y);
+        value = float2(x, y);
     }
-    else
-        // Vertex attribute format not supported.
-        return float2(0, 0);
+
+    return unity_VertexChannelMask_RT[attributeDimension].xy * value;
 }
 
 // attributeType is one of the kVertexAttribute* defines
@@ -188,7 +200,7 @@ float3 UnityRayTracingFetchVertexAttribute3(uint vertexIndex, uint attributeType
     const uint attributeByteOffset = vertexDecl.ByteOffset;
     const uint attributeDimension = vertexDecl.Dimension;
 
-    if (attributeByteOffset == INVALID_VERTEX_ATTRIBUTE_OFFSET || attributeDimension < 3)
+    if (attributeByteOffset == INVALID_VERTEX_ATTRIBUTE_OFFSET || attributeDimension > 4)
         return float3(0, 0, 0);
 
     const uint vertexSize       = unity_MeshInfo_RT[0].vertexSize[vertexDecl.Stream];
@@ -196,39 +208,42 @@ float3 UnityRayTracingFetchVertexAttribute3(uint vertexIndex, uint attributeType
     const uint attributeAddress = vertexAddress + attributeByteOffset;
     const uint attributeFormat  = vertexDecl.Format;
 
+    float3 value = float3(0, 0, 0);
+
+    ByteAddressBuffer vertexBuffer = unity_MeshVertexBuffers_RT[NonUniformResourceIndex(vertexDecl.Stream)];
+
     if (attributeFormat == kVertexFormatFloat)
     {
-        return asfloat(unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load3(attributeAddress));
+        value = asfloat(vertexBuffer.Load3(attributeAddress));
     }
     else if (attributeFormat == kVertexFormatFloat16)
     {
-        const uint2 fourHalfs = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load2(attributeAddress);
-        return float3(f16tof32(fourHalfs.x), f16tof32(fourHalfs.x >> 16), f16tof32(fourHalfs.y));
+        const uint2 fourHalfs = vertexBuffer.Load2(attributeAddress);
+        value = float3(f16tof32(fourHalfs.x), f16tof32(fourHalfs.x >> 16), f16tof32(fourHalfs.y));
     }
     else if (attributeFormat == kVertexFormatSNorm16)
     {
-        const uint2 fourShorts = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load2(attributeAddress);
+        const uint2 fourShorts = vertexBuffer.Load2(attributeAddress);
         const float x = DecodeSNorm16(fourShorts.x & 0xffff);
         const float y = DecodeSNorm16((fourShorts.x & 0xffff0000) >> 16);
         const float z = DecodeSNorm16(fourShorts.y & 0xffff);
-        return float3(x, y, z);
+        value = float3(x, y, z);
     }
     else if (attributeFormat == kVertexFormatUNorm16)
     {
-        const uint2 fourShorts = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load2(attributeAddress);
+        const uint2 fourShorts = vertexBuffer.Load2(attributeAddress);
         const float x = (fourShorts.x & 0xffff) / float(0xffff);
         const float y = ((fourShorts.x & 0xffff0000) >> 16) / float(0xffff);
         const float z = (fourShorts.y & 0xffff) / float(0xffff);
-        return float3(x, y, z);
+        value = float3(x, y, z);
     }
     else if (attributeFormat == kVertexFormatUNorm8)
     {
-        const uint value = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load(attributeAddress);
-        return float3(value & 0xff, (value & 0xff00) >> 8, (value & 0xff0000) >> 16) / 255.0f;
+        const uint data = vertexBuffer.Load(attributeAddress);
+        value = float3(data & 0xff, (data & 0xff00) >> 8, (data & 0xff0000) >> 16) / 255.0f;
     }
-    else
-        // Vertex attribute format not supported.
-        return float3(0, 0, 0);
+
+    return unity_VertexChannelMask_RT[attributeDimension].xyz * value;
 }
 
 // attributeType is one of the kVertexAttribute* defines
@@ -239,7 +254,7 @@ float4 UnityRayTracingFetchVertexAttribute4(uint vertexIndex, uint attributeType
     const uint attributeByteOffset = vertexDecl.ByteOffset;
     const uint attributeDimension = vertexDecl.Dimension;
 
-    if (attributeByteOffset == INVALID_VERTEX_ATTRIBUTE_OFFSET || attributeDimension < 4)
+    if (attributeByteOffset == INVALID_VERTEX_ATTRIBUTE_OFFSET || attributeDimension > 4)
         return float4(0, 0, 0, 0);
 
     const uint vertexSize       = unity_MeshInfo_RT[0].vertexSize[vertexDecl.Stream];
@@ -247,41 +262,44 @@ float4 UnityRayTracingFetchVertexAttribute4(uint vertexIndex, uint attributeType
     const uint attributeAddress = vertexAddress + attributeByteOffset;
     const uint attributeFormat  = vertexDecl.Format;
 
+    float4 value = float4(0, 0, 0, 0);
+
+    ByteAddressBuffer vertexBuffer = unity_MeshVertexBuffers_RT[NonUniformResourceIndex(vertexDecl.Stream)];
+
     if (attributeFormat == kVertexFormatFloat)
     {
-        return asfloat(unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load4(attributeAddress));
+        value = asfloat(vertexBuffer.Load4(attributeAddress));
     }
     else if (attributeFormat == kVertexFormatFloat16)
     {
-        const uint2 fourHalfs = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load2(attributeAddress);
-        return float4(f16tof32(fourHalfs.x), f16tof32(fourHalfs.x >> 16), f16tof32(fourHalfs.y), f16tof32(fourHalfs.y >> 16));
+        const uint2 fourHalfs = vertexBuffer.Load2(attributeAddress);
+        value = float4(f16tof32(fourHalfs.x), f16tof32(fourHalfs.x >> 16), f16tof32(fourHalfs.y), f16tof32(fourHalfs.y >> 16));
     }
     else if (attributeFormat == kVertexFormatSNorm16)
     {
-        const uint2 fourShorts = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load2(attributeAddress);
+        const uint2 fourShorts = vertexBuffer.Load2(attributeAddress);
         const float x = DecodeSNorm16(fourShorts.x & 0xffff);
         const float y = DecodeSNorm16((fourShorts.x & 0xffff0000) >> 16);
         const float z = DecodeSNorm16(fourShorts.y & 0xffff);
         const float w = DecodeSNorm16((fourShorts.y & 0xffff0000) >> 16);
-        return float4(x, y, z, w);
+        value = float4(x, y, z, w);
     }
     else if (attributeFormat == kVertexFormatUNorm16)
     {
-        const uint2 fourShorts = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load2(attributeAddress);
+        const uint2 fourShorts = vertexBuffer.Load2(attributeAddress);
         const float x = (fourShorts.x & 0xffff) / float(0xffff);
         const float y = ((fourShorts.x & 0xffff0000) >> 16) / float(0xffff);
         const float z = (fourShorts.y & 0xffff) / float(0xffff);
         const float w = ((fourShorts.y & 0xffff0000) >> 16) / float(0xffff);
-        return float4(x, y, z, w);
+        value = float4(x, y, z, w);
     }
     else if (attributeFormat == kVertexFormatUNorm8)
     {
-        const uint value = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load(attributeAddress);
-        return float4(value & 0xff, (value & 0xff00) >> 8, (value & 0xff0000) >> 16, (value & 0xff000000) >> 24) / 255.0f;
+        const uint data = vertexBuffer.Load(attributeAddress);
+        value = float4(data & 0xff, (data & 0xff00) >> 8, (data & 0xff0000) >> 16, (data & 0xff000000) >> 24) / 255.0f;
     }
-    else
-        // Vertex attribute format not supported.
-        return float4(0, 0, 0, 0);
+
+    return unity_VertexChannelMask_RT[attributeDimension] * value;
 }
 
 #endif  //#ifndef UNITY_RAY_TRACING_MESH_UTILS_INCLUDED

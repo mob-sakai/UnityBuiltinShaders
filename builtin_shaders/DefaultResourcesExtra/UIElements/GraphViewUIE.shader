@@ -17,6 +17,8 @@ Shader "Hidden/GraphView/GraphViewUIE"
     float _GraphViewScale;
     float _EditorPixelsPerPoint;
 
+    static const float kGraphViewEdgeFlag = 10.0f; // As defined in VertexFlags
+
     v2f ProcessEdge(appdata_t v, inout float4 clipSpacePos)
     {
         UNITY_SETUP_INSTANCE_ID(v);
@@ -42,10 +44,9 @@ Shader "Hidden/GraphView/GraphViewUIE"
         o.clipPos.xy = clipSpacePos.xy / clipSpacePos.w;
         o.uvXY.xy = float2(vertexHalfWidth*sideSign, halfWidth);
         o.uvXY.zw = vertex.xy;
-        o.flags.x = 2.0f; // Marking as an edge
-        o.flags.y = _ZoomFactor;
-        o.flags.zw = (fixed2)0;
-        o.svgFlags = (fixed3)0;
+        o.typeTexSvg.x = 100.0f; // Marking as an edge
+        o.typeTexSvg.y = _ZoomFactor;
+        o.typeTexSvg.z = 0;
 
         o.clipRectOpacityUVs = uie_std_vert_shader_info(v, o.color);
 #if UIE_SHADER_INFO_IN_VS
@@ -58,7 +59,7 @@ Shader "Hidden/GraphView/GraphViewUIE"
 
     v2f vert(appdata_t v, out float4 clipSpacePos : SV_POSITION)
     {
-        if (v.idsFlags.w*255.0f == kUIEVertexLastFlagValue)
+        if (v.idsFlags.w*255.0f == kGraphViewEdgeFlag)
             return ProcessEdge(v, clipSpacePos);
         return uie_std_vert(v, clipSpacePos);
     }
@@ -66,9 +67,9 @@ Shader "Hidden/GraphView/GraphViewUIE"
     fixed4 frag(v2f IN) : SV_Target
     {
         uie_fragment_clip(IN);
-        if (IN.flags.x == 2.0f) // Is it an edge?
+        if (IN.typeTexSvg.x == 100.0f) // Is it an edge?
         {
-            float distanceSat = saturate((IN.uvXY.y - abs(IN.uvXY.x)) * IN.flags.y + 0.5);
+            float distanceSat = saturate((IN.uvXY.y - abs(IN.uvXY.x)) * IN.typeTexSvg.y + 0.5);
             return fixed4(IN.color.rgb, IN.color.a * distanceSat);
         }
 
@@ -112,7 +113,7 @@ Shader "Hidden/GraphView/GraphViewUIE"
         // SM3.5 version
         SubShader
         {
-            Tags { "UIE_VertexTexturingIsAvailable" = "1" }
+            Tags { "UIE_VertexTexturingIsAvailable" = "1" "UIE_ShaderModelIs35" = "1" }
             Pass
             {
                 CGPROGRAM
