@@ -163,25 +163,27 @@ float2 UnityRayTracingFetchVertexAttribute2(uint vertexIndex, uint attributeType
 
     float2 value = float2(0, 0);
 
+    ByteAddressBuffer vertexBuffer = unity_MeshVertexBuffers_RT[NonUniformResourceIndex(vertexDecl.Stream)];
+
     if (attributeFormat == kVertexFormatFloat)
     {
-        value = asfloat(unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load2(attributeAddress));
+        value = asfloat(vertexBuffer.Load2(attributeAddress));
     }
     else if (attributeFormat == kVertexFormatFloat16)
     {
-        const uint twoHalfs = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load(attributeAddress);
+        const uint twoHalfs = vertexBuffer.Load(attributeAddress);
         value = float2(f16tof32(twoHalfs), f16tof32(twoHalfs >> 16));
     }
     else if (attributeFormat == kVertexFormatSNorm16)
     {
-        const uint twoShorts = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load(attributeAddress);
+        const uint twoShorts = vertexBuffer.Load(attributeAddress);
         const float x = DecodeSNorm16(twoShorts & 0xffff);
         const float y = DecodeSNorm16((twoShorts & 0xffff0000) >> 16);
         value = float2(x, y);
     }
     else if (attributeFormat == kVertexFormatUNorm16)
     {
-        const uint twoShorts = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load(attributeAddress);
+        const uint twoShorts = vertexBuffer.Load(attributeAddress);
         const float x = (twoShorts & 0xffff) / float(0xffff);
         const float y = ((twoShorts & 0xffff0000) >> 16) / float(0xffff);
         value = float2(x, y);
@@ -208,18 +210,20 @@ float3 UnityRayTracingFetchVertexAttribute3(uint vertexIndex, uint attributeType
 
     float3 value = float3(0, 0, 0);
 
+    ByteAddressBuffer vertexBuffer = unity_MeshVertexBuffers_RT[NonUniformResourceIndex(vertexDecl.Stream)];
+
     if (attributeFormat == kVertexFormatFloat)
     {
-        value = asfloat(unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load3(attributeAddress));
+        value = asfloat(vertexBuffer.Load3(attributeAddress));
     }
     else if (attributeFormat == kVertexFormatFloat16)
     {
-        const uint2 fourHalfs = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load2(attributeAddress);
+        const uint2 fourHalfs = vertexBuffer.Load2(attributeAddress);
         value = float3(f16tof32(fourHalfs.x), f16tof32(fourHalfs.x >> 16), f16tof32(fourHalfs.y));
     }
     else if (attributeFormat == kVertexFormatSNorm16)
     {
-        const uint2 fourShorts = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load2(attributeAddress);
+        const uint2 fourShorts = vertexBuffer.Load2(attributeAddress);
         const float x = DecodeSNorm16(fourShorts.x & 0xffff);
         const float y = DecodeSNorm16((fourShorts.x & 0xffff0000) >> 16);
         const float z = DecodeSNorm16(fourShorts.y & 0xffff);
@@ -227,7 +231,7 @@ float3 UnityRayTracingFetchVertexAttribute3(uint vertexIndex, uint attributeType
     }
     else if (attributeFormat == kVertexFormatUNorm16)
     {
-        const uint2 fourShorts = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load2(attributeAddress);
+        const uint2 fourShorts = vertexBuffer.Load2(attributeAddress);
         const float x = (fourShorts.x & 0xffff) / float(0xffff);
         const float y = ((fourShorts.x & 0xffff0000) >> 16) / float(0xffff);
         const float z = (fourShorts.y & 0xffff) / float(0xffff);
@@ -235,7 +239,7 @@ float3 UnityRayTracingFetchVertexAttribute3(uint vertexIndex, uint attributeType
     }
     else if (attributeFormat == kVertexFormatUNorm8)
     {
-        const uint data = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load(attributeAddress);
+        const uint data = vertexBuffer.Load(attributeAddress);
         value = float3(data & 0xff, (data & 0xff00) >> 8, (data & 0xff0000) >> 16) / 255.0f;
     }
 
@@ -260,18 +264,20 @@ float4 UnityRayTracingFetchVertexAttribute4(uint vertexIndex, uint attributeType
 
     float4 value = float4(0, 0, 0, 0);
 
+    ByteAddressBuffer vertexBuffer = unity_MeshVertexBuffers_RT[NonUniformResourceIndex(vertexDecl.Stream)];
+
     if (attributeFormat == kVertexFormatFloat)
     {
-        value = asfloat(unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load4(attributeAddress));
+        value = asfloat(vertexBuffer.Load4(attributeAddress));
     }
     else if (attributeFormat == kVertexFormatFloat16)
     {
-        const uint2 fourHalfs = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load2(attributeAddress);
+        const uint2 fourHalfs = vertexBuffer.Load2(attributeAddress);
         value = float4(f16tof32(fourHalfs.x), f16tof32(fourHalfs.x >> 16), f16tof32(fourHalfs.y), f16tof32(fourHalfs.y >> 16));
     }
     else if (attributeFormat == kVertexFormatSNorm16)
     {
-        const uint2 fourShorts = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load2(attributeAddress);
+        const uint2 fourShorts = vertexBuffer.Load2(attributeAddress);
         const float x = DecodeSNorm16(fourShorts.x & 0xffff);
         const float y = DecodeSNorm16((fourShorts.x & 0xffff0000) >> 16);
         const float z = DecodeSNorm16(fourShorts.y & 0xffff);
@@ -280,7 +286,7 @@ float4 UnityRayTracingFetchVertexAttribute4(uint vertexIndex, uint attributeType
     }
     else if (attributeFormat == kVertexFormatUNorm16)
     {
-        const uint2 fourShorts = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load2(attributeAddress);
+        const uint2 fourShorts = vertexBuffer.Load2(attributeAddress);
         const float x = (fourShorts.x & 0xffff) / float(0xffff);
         const float y = ((fourShorts.x & 0xffff0000) >> 16) / float(0xffff);
         const float z = (fourShorts.y & 0xffff) / float(0xffff);
@@ -289,7 +295,7 @@ float4 UnityRayTracingFetchVertexAttribute4(uint vertexIndex, uint attributeType
     }
     else if (attributeFormat == kVertexFormatUNorm8)
     {
-        const uint data = unity_MeshVertexBuffers_RT[vertexDecl.Stream].Load(attributeAddress);
+        const uint data = vertexBuffer.Load(attributeAddress);
         value = float4(data & 0xff, (data & 0xff00) >> 8, (data & 0xff0000) >> 16, (data & 0xff000000) >> 24) / 255.0f;
     }
 
