@@ -1,15 +1,22 @@
 // Unity built-in shader source. Copyright (c) 2016 Unity Technologies. MIT license (see license.txt)
 
-
 #ifdef SKINNING_GENERIC_VERTEX_USE_BUFFER
 #error Internal-Skinning-Util.cginc has been included twice
+#endif
+
+//There isn't anymore platform where raw or structured aren't supported _using compute shader_
+//GLES3.1 is the minimal requirement for compute shader and Shader model 5.0 is expected on D3D platform.
+#define SKINNING_SUPPORT_RAW_OR_STRUCTURED_BUFFER 1
+
+#ifndef SKINNING_SUPPORT_RAW_OR_STRUCTURED_BUFFER
+#error SKINNING_SUPPORT_RAW_OR_STRUCTURED_BUFFER must be declared
 #endif
 
 #define SKINNING_GENERIC_VERTEX_USE_BUFFER (1)
 #define SKINNING_GENERIC_VERTEX_USE_STRUCTURED_BUFFER (2)
 #define SKINNING_GENERIC_VERTEX_USE_RAW_BUFFER (3)
 
-#if defined(SHADER_API_D3D12) || defined(SHADER_API_D3D11) || defined(SHADER_API_XBOXONE) || defined(SHADER_API_PS4) || defined(SHADER_API_GLCORE) || defined(SHADER_API_VULKAN) || defined(SHADER_API_METAL) || defined(SHADER_API_PSSL) || defined(SHADER_API_SWITCH)
+#if SKINNING_SUPPORT_RAW_OR_STRUCTURED_BUFFER == 1
 #if USE_RAW_BUFFER
 //Should correspond to GeometryBuffers::GetComputeBufferFlag, here kGfxBufferTargetRaw
 #define SKINNING_GENERIC_VERTEX_VIEW_FORMAT SKINNING_GENERIC_VERTEX_USE_RAW_BUFFER
