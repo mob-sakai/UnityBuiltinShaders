@@ -42,11 +42,13 @@ Shader "Hidden/GraphView/GraphViewUIE"
         UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
         clipSpacePos = UnityObjectToClipPos(float3(vertex.xy, kUIEMeshZ));
         o.clipPos.xy = clipSpacePos.xy / clipSpacePos.w;
+        o.clipPos.zw = float2(0,0);
         o.uvXY.xy = float2(vertexHalfWidth*sideSign, halfWidth);
         o.uvXY.zw = vertex.xy;
-        o.typeTexSvg.x = 100.0f; // Marking as an edge
-        o.typeTexSvg.y = _ZoomFactor;
-        o.typeTexSvg.z = 0;
+        o.typeTexSettings.x = 100.0f; // Marking as an edge
+        o.typeTexSettings.y = _ZoomFactor;
+        o.typeTexSettings.z = 0;
+        o.textCoreUVs = fixed2(0,0);
 
         o.clipRectOpacityUVs = uie_std_vert_shader_info(v, o.color);
 #if UIE_SHADER_INFO_IN_VS
@@ -59,7 +61,7 @@ Shader "Hidden/GraphView/GraphViewUIE"
 
     v2f vert(appdata_t v, out float4 clipSpacePos : SV_POSITION)
     {
-        if (v.idsFlags.w*255.0f == kGraphViewEdgeFlag)
+        if (v.flags.x*255.0f == kGraphViewEdgeFlag)
             return ProcessEdge(v, clipSpacePos);
         return uie_std_vert(v, clipSpacePos);
     }
@@ -67,9 +69,9 @@ Shader "Hidden/GraphView/GraphViewUIE"
     fixed4 frag(v2f IN) : SV_Target
     {
         uie_fragment_clip(IN);
-        if (IN.typeTexSvg.x == 100.0f) // Is it an edge?
+        if (IN.typeTexSettings.x == 100.0f) // Is it an edge?
         {
-            float distanceSat = saturate((IN.uvXY.y - abs(IN.uvXY.x)) * IN.typeTexSvg.y + 0.5);
+            float distanceSat = saturate((IN.uvXY.y - abs(IN.uvXY.x)) * IN.typeTexSettings.y + 0.5);
             return fixed4(IN.color.rgb, IN.color.a * distanceSat);
         }
 
