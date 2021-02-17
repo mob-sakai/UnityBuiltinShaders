@@ -38,6 +38,7 @@ Shader "Hidden/SceneViewSelected"
         Tags { "RenderType"="Opaque" }
 
         // #0: things that are visible (pass depth). 1 in alpha, 1 in red (SM2.0)
+        // 1 in green (visibility), 1 in blue (selected)
         Pass
         {
             Blend One Zero
@@ -59,6 +60,7 @@ Shader "Hidden/SceneViewSelected"
             ENDCG
         }
         // #1: things that are visible (pass depth). 1 in alpha, 1 in red (SM3.0)
+        // 1 in green (visibility), 1 in blue (selected)
         Pass
         {
             Blend One Zero
@@ -80,7 +82,8 @@ Shader "Hidden/SceneViewSelected"
             ENDCG
         }
 
-        // #2: all the things, including the ones that fail the depth test. Additive blend, 1 in green, 1 in alpha (SM2.0)
+        // #2: all the things, including the ones that fail the depth test.
+        // Additive blend, 0 in green (visibility), 1 in blue (selected), 1 in alpha (SM2.0)
         Pass
         {
             Blend One One
@@ -104,7 +107,8 @@ Shader "Hidden/SceneViewSelected"
             ENDCG
         }
 
-        // #3: all the things, including the ones that fail the depth test. Additive blend, 1 in green, 1 in alpha
+        // #3: all the things, including the ones that fail the depth test.
+        // Additive blend, 0 in green (visibility), 1 in blue (selected), 1 in alpha (SM3.0)
         Pass
         {
             Blend One One

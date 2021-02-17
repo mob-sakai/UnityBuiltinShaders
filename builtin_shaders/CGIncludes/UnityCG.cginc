@@ -501,22 +501,33 @@ half4 UnityEncodeRGBM (half3 color, float maxRGBM)
 
 // Decodes HDR textures
 // handles dLDR, RGBM formats
-inline half3 DecodeHDR (half4 data, half4 decodeInstructions)
+inline half3 DecodeHDR(half4 data, half4 decodeInstructions, int colorspaceIsGamma)
 {
     // Take into account texture alpha if decodeInstructions.w is true(the alpha value affects the RGB channels)
     half alpha = decodeInstructions.w * (data.a - 1.0) + 1.0;
 
     // If Linear mode is not supported we can skip exponent part
-    #if defined(UNITY_COLORSPACE_GAMMA)
+    if(colorspaceIsGamma)
         return (decodeInstructions.x * alpha) * data.rgb;
+
+#   if defined(UNITY_USE_NATIVE_HDR)
+    return decodeInstructions.x * data.rgb; // Multiplier for future HDRI relative to absolute conversion.
+#   else
+    return (decodeInstructions.x * pow(alpha, decodeInstructions.y)) * data.rgb;
+#   endif
+}
+
+// Decodes HDR textures
+// handles dLDR, RGBM formats
+inline half3 DecodeHDR (half4 data, half4 decodeInstructions)
+{
+    #if defined(UNITY_COLORSPACE_GAMMA)
+    return DecodeHDR(data, decodeInstructions, 1);
     #else
-    #   if defined(UNITY_USE_NATIVE_HDR)
-            return decodeInstructions.x * data.rgb; // Multiplier for future HDRI relative to absolute conversion.
-    #   else
-            return (decodeInstructions.x * pow(alpha, decodeInstructions.y)) * data.rgb;
-    #   endif
+    return DecodeHDR(data, decodeInstructions, 0);
     #endif
 }
+
 
 // Decodes HDR textures
 // handles dLDR, RGBM formats

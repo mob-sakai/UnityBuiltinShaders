@@ -181,5 +181,5 @@ Shader "Hidden/TextCore/Distance Field SSD"
             ENDCG
         }
     }
-    //CustomEditor "TMPro.EditorUtilities.TMP_SDFShaderGUI"
+    CustomEditor "UnityEditor.TextCore.Text.TextCoreShaderGUISDF"
 }
