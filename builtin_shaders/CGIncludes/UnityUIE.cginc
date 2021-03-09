@@ -125,7 +125,7 @@ struct v2f
     fixed2 textCoreUVs : TEXCOORD3;
     float4 clipPos : TEXCOORD4; // W holds textcore dilate flag
 #if UIE_SHADER_INFO_IN_VS
-    nointerpolation fixed4 clipRect : TEXCOORD5; // Clip rect presampled
+    nointerpolation float4 clipRect : TEXCOORD5; // Clip rect presampled
 #endif // UIE_SHADER_INFO_IN_VS
     UNITY_VERTEX_OUTPUT_STEREO
 };
