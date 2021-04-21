@@ -149,6 +149,7 @@ Shader "Hidden/SceneViewSelected"
             sampler2D _MainTex;
             float4 _MainTex_TexelSize;
             half4 _OutlineColor;
+            half _OutlineFade;
 
             half4 fragment(Varying i) : SV_Target
             {
@@ -170,6 +171,7 @@ Shader "Hidden/SceneViewSelected"
                     if (isSelected) // no tinting at all for occluded selection
                         alpha = 0;
                 }
+                alpha *= _OutlineFade;
                 float4 outlineColor = float4(_OutlineColor.rgb,alpha);
                 return outlineColor;
             }

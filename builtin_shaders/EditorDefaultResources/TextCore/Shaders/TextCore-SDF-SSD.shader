@@ -1,6 +1,6 @@
 // Unity built-in shader source. Copyright (c) 2016 Unity Technologies. MIT license (see license.txt)
 
-Shader "Hidden/TextCore/Distance Field SSD" {
+Shader "Hidden/TextCore/Editor/Distance Field SSD" {
 
     Properties{
         _FaceColor("Face Color", Color) = (1,1,1,1)
