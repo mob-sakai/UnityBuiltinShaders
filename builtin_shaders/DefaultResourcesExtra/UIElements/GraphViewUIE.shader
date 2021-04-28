@@ -19,7 +19,7 @@ Shader "Hidden/GraphView/GraphViewUIE"
 
     static const float kGraphViewEdgeFlag = 10.0f; // As defined in VertexFlags
 
-    v2f ProcessEdge(appdata_t v, inout float4 clipSpacePos)
+    v2f ProcessEdge(appdata_t v)
     {
         UNITY_SETUP_INSTANCE_ID(v);
         uie_vert_load_payload(v);
@@ -40,15 +40,16 @@ Shader "Hidden/GraphView/GraphViewUIE"
 
         v2f o;
         UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
-        clipSpacePos = UnityObjectToClipPos(float3(vertex.xy, kUIEMeshZ));
-        o.clipPos.xy = clipSpacePos.xy / clipSpacePos.w;
+        o.pos = UnityObjectToClipPos(float3(vertex.xy, kUIEMeshZ));
+        o.clipPos.xy = o.pos.xy / o.pos.w;
         o.clipPos.zw = float2(0,0);
         o.uvXY.xy = float2(vertexHalfWidth*sideSign, halfWidth);
         o.uvXY.zw = vertex.xy;
         o.typeTexSettings.x = 100.0f; // Marking as an edge
         o.typeTexSettings.y = _ZoomFactor;
-        o.typeTexSettings.z = 0;
+        o.typeTexSettings.zw = half2(0, 0);
         o.textCoreUVs = fixed2(0,0);
+        o.circle = half4(0, 0, 0, 0);
 
         o.clipRectOpacityUVs = uie_std_vert_shader_info(v, o.color);
 #if UIE_SHADER_INFO_IN_VS
@@ -59,11 +60,11 @@ Shader "Hidden/GraphView/GraphViewUIE"
         return o;
     }
 
-    v2f vert(appdata_t v, out float4 clipSpacePos : SV_POSITION)
+    v2f vert(appdata_t v)
     {
         if (v.flags.x*255.0f == kGraphViewEdgeFlag)
-            return ProcessEdge(v, clipSpacePos);
-        return uie_std_vert(v, clipSpacePos);
+            return ProcessEdge(v);
+        return uie_std_vert(v);
     }
 
     fixed4 frag(v2f IN) : SV_Target
