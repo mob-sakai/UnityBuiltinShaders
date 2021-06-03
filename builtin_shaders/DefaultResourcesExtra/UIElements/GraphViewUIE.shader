@@ -48,12 +48,13 @@ Shader "Hidden/GraphView/GraphViewUIE"
         o.typeTexSettings.x = 100.0f; // Marking as an edge
         o.typeTexSettings.y = _ZoomFactor;
         o.typeTexSettings.zw = half2(0, 0);
-        o.textCoreUVs = fixed2(0,0);
+        o.colorUVs = float2(0,0);
         o.circle = half4(0, 0, 0, 0);
 
-        o.clipRectOpacityUVs = uie_std_vert_shader_info(v, o.color);
+        uie_std_vert_shader_info(v, o.color, o.clipRectOpacityUVs.xy, o.clipRect.zw, o.colorUVs.xy);
+
 #if UIE_SHADER_INFO_IN_VS
-        o.clipRect = tex2Dlod(_ShaderInfoTex, float4(o.clipRectOpacityUVs.xy, 0, 0)),
+        o.clipRect = tex2Dlod(_ShaderInfoTex, float4(o.clipRectOpacityUVs.xy, 0, 0));
 #endif // UIE_SHADER_INFO_IN_VS
 
         o.color.a *= edgeWidth / realWidth; // make up for bigger edge by fading it.

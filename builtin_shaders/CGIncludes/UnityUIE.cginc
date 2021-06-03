@@ -132,9 +132,9 @@ struct appdata_t
     float4 color    : COLOR;
     float2 uv       : TEXCOORD0;
     float4 xformClipPages : TEXCOORD1; // Top-left of xform and clip pages: XY,XY
-    float4 ids      : TEXCOORD2; //XYZW (xform,clip,opacity,textcore)
-    float4 flags    : TEXCOORD3; //X (flags) Y (textcore-dilate) Z (is-arc) W (unused)
-    float4 opacityPageSettingIndex : TEXCOORD4; //XY: Opacity page index, ZW: SVG/TexCore setting index
+    float4 ids      : TEXCOORD2; //XYZW (xform,clip,opacity,color/textcore)
+    float4 flags    : TEXCOORD3; //X (flags) Y (textcore-dilate) Z (is-arc) W (is-dynamic-colored)
+    float4 opacityColorPages : TEXCOORD4; //XY: Opacity page, ZW: color page, or SVG/TexCore setting index
     float4 circle   : TEXCOORD5; // XY (center) Z (outer-radius) W (inner-radius, inner-center in uv)
     float  textureId : TEXCOORD6; // X (textureId)
 
@@ -147,12 +147,12 @@ struct v2f
     UIE_V2F_COLOR_T color : COLOR;
     float4 uvXY  : TEXCOORD0; // UV and ZW holds XY position in points
     UIE_FLAT_OPTIM half4 typeTexSettings : TEXCOORD1; // X: Render Type Y: Tex Index Z: SVG Gradient Index W: Is Arc
-    fixed4 clipRectOpacityUVs : TEXCOORD2;
-    float2 textCoreUVs : TEXCOORD3; // Used for TextCore UVs and circle1 center
+    UIE_FLAT_OPTIM fixed4 clipRectOpacityUVs : TEXCOORD2;
+    UIE_FLAT_OPTIM float2 colorUVs : TEXCOORD3; // Color/TextCore UVs
     float4 clipPos : TEXCOORD4; // W holds textcore dilate flag
     half4 circle : TEXCOORD5;
 #if UIE_SHADER_INFO_IN_VS
-    nointerpolation float4 clipRect : TEXCOORD6; // Clip rect presampled
+    UIE_FLAT_OPTIM float4 clipRect : TEXCOORD6; // Clip rect presampled
 #endif // UIE_SHADER_INFO_IN_VS
     UNITY_VERTEX_OUTPUT_STEREO
 };
@@ -453,17 +453,22 @@ float3 sd_to_coverage(float3 sd, float2 uv, float sdfSizeRCP, float sdfScale, fl
     return saturate(0.5 + 2.0 * sd * ssr / (1.0 + softness * ssr));   // Screen pixel coverage : center + (1 / sampling radius) * signed distance
 }
 
-UIE_FRAG_T uie_textcore(float textAlpha, float2 uv, float2 textCoreUV, float4 faceColor, float extraDilate)
+UIE_FRAG_T uie_textcore(float textAlpha, float2 uv, float2 textCoreUV, float4 vertexColor, bool isDynamicColor, float extraDilate)
 {
     float2 row0UV = (textCoreUV + float2(0, 0) + 0.5f) * _ShaderInfoTex_TexelSize.xy;
     float2 row1UV = (textCoreUV + float2(0, 1) + 0.5f) * _ShaderInfoTex_TexelSize.xy;
     float2 row2UV = (textCoreUV + float2(0, 2) + 0.5f) * _ShaderInfoTex_TexelSize.xy;
+    float2 row3UV = (textCoreUV + float2(0, 3) + 0.5f) * _ShaderInfoTex_TexelSize.xy;
 
-    float4 outlineColor  = tex2Dlod(_ShaderInfoTex, float4(row0UV, 0, 0));
-    float4 underlayColor = tex2Dlod(_ShaderInfoTex, float4(row1UV, 0, 0));
-    float4 settings      = tex2Dlod(_ShaderInfoTex, float4(row2UV, 0, 0));
+    float4 outlineColor  = tex2Dlod(_ShaderInfoTex, float4(row1UV, 0, 0));
+    float4 underlayColor = tex2Dlod(_ShaderInfoTex, float4(row2UV, 0, 0));
+    float4 settings      = tex2Dlod(_ShaderInfoTex, float4(row3UV, 0, 0));
 
-     settings *= _FontTexSDFScale;
+    float4 faceColor = vertexColor;
+    if (isDynamicColor)
+        faceColor = tex2Dlod(_ShaderInfoTex, float4(row0UV, 0, 0));
+
+    settings *= _FontTexSDFScale;
     float2 underlayOffset = settings.xy;
     float underlaySoftness = settings.z;
     float outlineDilate = settings.w * 0.25f;
@@ -487,7 +492,7 @@ UIE_FRAG_T uie_textcore(float textAlpha, float2 uv, float2 textCoreUV, float4 fa
     return color;
 }
 
-float4 uie_std_vert_shader_info(appdata_t v, out UIE_V2F_COLOR_T color)
+void uie_std_vert_shader_info(appdata_t v, out UIE_V2F_COLOR_T color, out float2 clipRectUV, out float2 opacityUV, out float2 colorUV)
 {
 #if UIE_COLORSPACE_GAMMA
     color = v.color;
@@ -496,26 +501,40 @@ float4 uie_std_vert_shader_info(appdata_t v, out UIE_V2F_COLOR_T color)
     color = UIE_V2F_COLOR_T(uie_gamma_to_linear(v.color.rgb), v.color.a);
 #endif // UIE_COLORSPACE_GAMMA
 
-    const float2 opacityUV = (uie_decode_shader_info_texel_pos(v.opacityPageSettingIndex.xy, v.ids.z, 1.0f) + 0.5f) * _ShaderInfoTex_TexelSize.xy;
+    opacityUV = (uie_decode_shader_info_texel_pos(v.opacityColorPages.xy, v.ids.z, 1.0f) + 0.5f) * _ShaderInfoTex_TexelSize.xy;
+    colorUV = (uie_decode_shader_info_texel_pos(v.opacityColorPages.zw, v.ids.w, 1.0f) + 0.5f) * _ShaderInfoTex_TexelSize.xy;
 #if UIE_SHADER_INFO_IN_VS
-    const float2 clipRectUV = (uie_decode_shader_info_texel_pos(v.xformClipPages.zw, v.ids.y, 1.0f) + 0.5f) * _ShaderInfoTex_TexelSize.xy;
+    if (v.flags.w > 0.0f)
+        // Color is stored in shader info
+        color = tex2Dlod(_ShaderInfoTex, float4(colorUV, 0, 0));
+    clipRectUV = (uie_decode_shader_info_texel_pos(v.xformClipPages.zw, v.ids.y, 1.0f) + 0.5f) * _ShaderInfoTex_TexelSize.xy;
     color.a *= tex2Dlod(_ShaderInfoTex, float4(opacityUV, 0, 0)).a;
 #else // !UIE_SHADER_INFO_IN_VS
-    const float2 clipRectUV = float2(v.ids.y * 255.0f, 0.0f);
+    clipRectUV = float2(v.ids.y * 255.0f, 0.0f);
 #endif // UIE_SHADER_INFO_IN_VS
-
-    return float4(clipRectUV, opacityUV);
 }
 
 void fetchCircle(float2 inCenter, float inRad, out half2 outPos, out half outRad)
 {
+
     half3 pos = mul(uie_arcMat, half4(inCenter, 0, 1)).xyz;
 #if UNITY_UV_STARTS_AT_TOP
     pos.y *= -1;
 #endif
     outPos = (pos.xy + 1) / _PixelClipInvView.xy;
 
-    half4 radius = half4(inRad, 0, 0, 0);
+
+    //temporary fix to mimize the effect of asymetric scaling
+    half4 radius;
+
+    half2 scaled = mul(uie_arcMat, half4(1,1,0,0));
+    if (abs(scaled.x) >= abs(scaled.y))
+        radius = half4(inRad, 0, 0, 0);
+    else
+        radius = half4(0, inRad, 0, 0);
+    //end of temporary fix
+
+
     radius = mul(uie_arcMat, radius);
     outRad = length(radius.xy / _PixelClipInvView.xy);
 }
@@ -555,16 +574,19 @@ v2f uie_std_vert(appdata_t v)
     // 1 => solid, 2 => text, 3 => textured, 4 => svg
     half renderType = isSolid * 1 + isText * 2 + (isDynamic + isTextured) * 3 + isSvgGradients * 4;
     half textureSlot = FindTextureSlot(v.textureId);
-    float settingIndex = v.opacityPageSettingIndex.z*(255.0f*255.0f) + v.opacityPageSettingIndex.w*255.0f;
+    float settingIndex = v.opacityColorPages.z*(255.0f*255.0f) + v.opacityColorPages.w*255.0f;
     half isArc = v.flags.z > 0.0f ? 1.0f : 0.0f;
-    OUT.typeTexSettings = half4(renderType, textureSlot, settingIndex, isArc);
+    half wFlags = isArc;
+    if (v.flags.w > 0.0f)
+        wFlags += 2.0f; // Poor man's bitset
+    OUT.typeTexSettings = half4(renderType, textureSlot, settingIndex, wFlags);
 
     OUT.uvXY.xy = v.uv;
     if (isDynamic == 1.0f)
         OUT.uvXY.xy *= _TextureInfo[textureSlot].yz;
 
-    OUT.clipRectOpacityUVs = uie_std_vert_shader_info(v, OUT.color);
-    OUT.textCoreUVs = uie_decode_shader_info_texel_pos(v.opacityPageSettingIndex.zw, v.ids.w, 3.0f);
+    uie_std_vert_shader_info(v, OUT.color, OUT.clipRectOpacityUVs.xy, OUT.clipRectOpacityUVs.zw, OUT.colorUVs.xy);
+    OUT.colorUVs.xy = isText ? uie_decode_shader_info_texel_pos(v.opacityColorPages.zw, v.ids.w, 4.0f) : OUT.colorUVs.xy;
 
 #if UIE_SHADER_INFO_IN_VS
     OUT.clipRect = tex2Dlod(_ShaderInfoTex, float4(OUT.clipRectOpacityUVs.xy, 0, 0));
@@ -572,6 +594,7 @@ v2f uie_std_vert(appdata_t v)
 
     if (isArc > 0.0f)
     {
+
         uie_arcMat = mul(UNITY_MATRIX_VP, mul(unity_ObjectToWorld, uie_toWorldMat));
         fetchCircle(v.circle.xy, v.circle.z, OUT.circle.xy, OUT.circle.z);
         if (v.circle.w != 0.0f) // Don't fetch the inner circle if unused
@@ -593,23 +616,31 @@ UIE_FRAG_T uie_std_frag(v2f IN)
     bool isTextured     = IN.typeTexSettings.x == 3;
     bool isSvgGradients = IN.typeTexSettings.x == 4;
     float settingIndex  = IN.typeTexSettings.z;
-    bool isArc          = IN.typeTexSettings.w == 1;
+
+    // Decode bitset
+    bool isDynamicColor = IN.typeTexSettings.w >= 2.0;
+    if (isDynamicColor)
+        IN.typeTexSettings.w -= 2.0f;
+    bool isArc = IN.typeTexSettings.w >= 1.0f;
 
     float2 uv = IN.uvXY.xy;
 
 #if !UIE_SHADER_INFO_IN_VS
     IN.color.a *= tex2D(_ShaderInfoTex, IN.clipRectOpacityUVs.zw).a;
+    if (isDynamicColor && !isText)
+        IN.color = tex2D(_ShaderInfoTex, IN.colorUVs.xy);
 #endif // !UIE_SHADER_INFO_IN_VS
 
     UIE_FRAG_T texColor = (UIE_FRAG_T)isSolid;
     if (isTextured)
-        texColor = SampleTextureSlot(IN.typeTexSettings.y, uv);
-
-    float textAlpha = tex2D(_FontTex, uv).a;
-    if (isText)
     {
+        texColor = SampleTextureSlot(IN.typeTexSettings.y, uv);
+    }
+    else if (isText)
+    {
+        float textAlpha = tex2D(_FontTex, uv).a;
         if (_FontTexSDFScale > 0.0f)
-            texColor = uie_textcore(textAlpha, uv, IN.textCoreUVs.xy, IN.color, IN.clipPos.w);
+            texColor = uie_textcore(textAlpha, uv, IN.colorUVs.xy, IN.color, isDynamicColor, IN.clipPos.w);
         else
             texColor = UIE_FRAG_T(1, 1, 1, tex2D(_FontTex, uv).a);
     }
