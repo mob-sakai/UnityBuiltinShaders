@@ -168,8 +168,6 @@ namespace UnityEditor
             // Use default labelWidth
             EditorGUIUtility.labelWidth = 0f;
 
-            // Detect any changes to the material
-            EditorGUI.BeginChangeCheck();
             {
                 GUILayout.Label(Styles.blendingOptionsText, EditorStyles.boldLabel);
 
@@ -199,11 +197,6 @@ namespace UnityEditor
                     if (EditorGUI.EndChangeCheck())
                         emissionMap.textureScaleAndOffset = albedoMap.textureScaleAndOffset; // Apply the main texture scale and offset to the emission texture as well, for Enlighten's sake
                 }
-            }
-            if (EditorGUI.EndChangeCheck())
-            {
-                foreach (var obj in blendMode.targets)
-                    ValidateMaterial((Material)obj);
             }
 
             EditorGUILayout.Space();
