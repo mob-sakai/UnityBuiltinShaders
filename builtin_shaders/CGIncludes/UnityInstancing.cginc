@@ -334,6 +334,11 @@
         #endif
     UNITY_INSTANCING_BUFFER_END(unity_Builtins2)
 
+    UNITY_INSTANCING_BUFFER_START(PerDraw3)
+        UNITY_DEFINE_INSTANCED_PROP(float4x4, unity_PrevObjectToWorldArray)
+        UNITY_DEFINE_INSTANCED_PROP(float4x4, unity_PrevWorldToObjectArray)
+    UNITY_INSTANCING_BUFFER_END(unity_Builtins3)
+
     #ifndef UNITY_DONT_INSTANCE_OBJECT_MATRICES
         #define unity_ObjectToWorld     UNITY_ACCESS_INSTANCED_PROP(unity_Builtins0, unity_ObjectToWorldArray)
         #define MERGE_UNITY_BUILTINS_INDEX(X) unity_Builtins##X##Array
