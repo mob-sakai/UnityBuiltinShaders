@@ -6,11 +6,13 @@ Shader "Hidden/Handles Shaded" {
         _SkyColor ("Sky Color", Color) = (1,1,1,1)
         _GroundColor ("Ground Color", Color) = (1,1,1,1)
         _MainTex ("Base (RGB) Gloss (A)", 2D) = "white" {}
+        [Enum(UnityEngine.Rendering.BlendMode)] _BlendSrcMode ("_BlendSrcMode", Int) = 5 //SrcAlpha = 5
+        [Enum(UnityEngine.Rendering.BlendMode)] _BlendDstMode ("_BlendDstMode", Int) = 10 //OneMinusSrcAlpha = 10
         [Enum(UnityEngine.Rendering.CompareFunction)] _HandleZTest ("_HandleZTest", Int) = 8
     }
     Category {
         Fog {Mode Off}
-        Blend SrcAlpha OneMinusSrcAlpha
+        Blend [_BlendSrcMode] [_BlendDstMode]
         ZWrite Off
         ZTest [_HandleZTest]
 
