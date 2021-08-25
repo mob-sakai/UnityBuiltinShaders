@@ -135,7 +135,7 @@ struct appdata_t
     float4 ids      : TEXCOORD2; //XYZW (xform,clip,opacity,color/textcore)
     float4 flags    : TEXCOORD3; //X (flags) Y (textcore-dilate) Z (is-arc) W (is-dynamic-colored)
     float4 opacityColorPages : TEXCOORD4; //XY: Opacity page, ZW: color page, or SVG/TexCore setting index
-    float4 circle   : TEXCOORD5; // XY (center) Z (outer-radius) W (inner-radius, inner-center in uv)
+    float4 circle   : TEXCOORD5; // XY (outer) ZW (inner)
     float  textureId : TEXCOORD6; // X (textureId)
 
     UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -269,7 +269,6 @@ float4 SampleTextureSlot(half index, float2 uv)
 // will be identities.
 
 static float4x4 uie_toWorldMat;
-static float4x4 uie_arcMat;
 
 float2 uie_snap_to_integer_pos(float2 clipSpaceXY)
 {
@@ -514,35 +513,14 @@ void uie_std_vert_shader_info(appdata_t v, out UIE_V2F_COLOR_T color, out float2
 #endif // UIE_SHADER_INFO_IN_VS
 }
 
-void fetchCircle(float2 inCenter, float inRad, out half2 outPos, out half outRad)
+float pixelDist(float2 uv)
 {
+    float dist = length(uv) - 1.0f; // Bring from [0,...] to [-1,...] range
+    return dist / fwidth(dist);
 
-    half3 pos = mul(uie_arcMat, half4(inCenter, 0, 1)).xyz;
-#if UNITY_UV_STARTS_AT_TOP
-    pos.y *= -1;
-#endif
-    outPos = (pos.xy + 1) / _PixelClipInvView.xy;
-
-
-    //temporary fix to mimize the effect of asymetric scaling
-    half4 radius;
-
-    half2 scaled = mul(uie_arcMat, half4(1,1,0,0));
-    if (abs(scaled.x) >= abs(scaled.y))
-        radius = half4(inRad, 0, 0, 0);
-    else
-        radius = half4(0, inRad, 0, 0);
-    //end of temporary fix
-
-
-    radius = mul(uie_arcMat, radius);
-    outRad = length(radius.xy / _PixelClipInvView.xy);
-}
-
-float distFromCenter(float2 fragPos, float2 circleCenter)
-{
-    float2 centerToFrag = fragPos - circleCenter;
-    return length(centerToFrag);
+    // Probably more accurate, but requires an additional length():
+    // float2 ddist = float2(ddx(dist), ddy(dist));
+    // return dist / length(ddist);
 }
 
 v2f uie_std_vert(appdata_t v)
@@ -592,16 +570,7 @@ v2f uie_std_vert(appdata_t v)
     OUT.clipRect = tex2Dlod(_ShaderInfoTex, float4(OUT.clipRectOpacityUVs.xy, 0, 0));
 #endif // UIE_SHADER_INFO_IN_VS
 
-    if (isArc > 0.0f)
-    {
-
-        uie_arcMat = mul(UNITY_MATRIX_VP, mul(unity_ObjectToWorld, uie_toWorldMat));
-        fetchCircle(v.circle.xy, v.circle.z, OUT.circle.xy, OUT.circle.z);
-        if (v.circle.w != 0.0f) // Don't fetch the inner circle if unused
-            fetchCircle(v.uv, v.circle.w, OUT.uvXY.xy, OUT.circle.w);
-    }
-    else
-        OUT.circle = half4(0, 0, 0, 0);
+    OUT.circle = v.circle;
 
     return OUT;
 }
@@ -621,7 +590,7 @@ UIE_FRAG_T uie_std_frag(v2f IN)
     bool isDynamicColor = IN.typeTexSettings.w >= 2.0;
     if (isDynamicColor)
         IN.typeTexSettings.w -= 2.0f;
-    bool isArc = IN.typeTexSettings.w >= 1.0f;
+    float isArc = IN.typeTexSettings.w;
 
     float2 uv = IN.uvXY.xy;
 
@@ -658,18 +627,17 @@ UIE_FRAG_T uie_std_frag(v2f IN)
 
     if (isArc)
     {
-        // All of these are in framebuffer coordinates (pixel units)
-        float2 center0 = IN.circle.xy;
-        float radius0 = IN.circle.z;
-        float2 center1 = IN.uvXY.xy;
-        float radius1 = IN.circle.w;
-
-        float fragRadius0 = distFromCenter(IN.pos, center0);
-        float fragRadius1 = distFromCenter(IN.pos, center1);
-
-        // With a positive radius, pixels inside the circle are lit (vice versa if negative)
-        color.a *= radius0 != 0.0f ? saturate(radius0 - fragRadius0 + 0.5f) : 1.0f;
-        color.a *= radius1 != 0.0f ? saturate(fragRadius1 - radius1 + 0.5f) : 1.0f;
+        // Don't evaluate circles defined as kUnusedArc
+        if (IN.circle.x > -9999.0f)
+        {
+            float outer = pixelDist(IN.circle.xy);
+            color.a *= saturate(0.5f-outer);
+        }
+        if (IN.circle.z > -9999.0f)
+        {
+            float inner = pixelDist(IN.circle.zw);
+            color.a *= 1.0f - saturate(0.5f-inner);
+        }
 
         // Clip fragments when alpha is close to 0 (< 1/256 here).
         // This will write proper masks values in the stencil buffer.
