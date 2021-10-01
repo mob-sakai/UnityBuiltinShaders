@@ -24,7 +24,7 @@ Shader "Hidden/GraphView/GraphViewUIE"
         UNITY_SETUP_INSTANCE_ID(v);
         uie_vert_load_payload(v);
         v.vertex.xyz = mul(uie_toWorldMat, v.vertex);
-        v.uv.xy = mul(uie_toWorldMat, float3(v.uv.xy,0)).xy;
+        v.uv.xy = mul(uie_toWorldMat, float4(v.uv.xy,0,0)).xy;
 
         static const float k_MinEdgeWidth = 1.75f;
         const float halfWidth = length(v.uv.xy);

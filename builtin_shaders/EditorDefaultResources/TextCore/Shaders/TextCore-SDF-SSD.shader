@@ -68,5 +68,5 @@ Shader "Hidden/TextCore/Editor/Distance Field SSD" {
             }
         }
 
-        CustomEditor "UnityEditor.TextCore.TextCoreShaderGUISDF"
+        CustomEditor "TextCore.Text.TextCoreShaderGUISDF"
 }
