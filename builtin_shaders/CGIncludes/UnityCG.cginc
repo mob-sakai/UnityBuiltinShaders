@@ -19,7 +19,7 @@
 // - When static and dynamic lightmaps are not available, SH evaluation is always performed
 // - For low level LODs, static lightmap and real-time GI from light probes can be combined together
 // - Passes that don't do ambient (additive, shadowcaster etc.) should not do SH either.
-#define UNITY_SHOULD_SAMPLE_SH (defined(LIGHTPROBE_SH) && !defined(UNITY_PASS_FORWARDADD) && !defined(UNITY_PASS_PREPASSBASE) && !defined(UNITY_PASS_SHADOWCASTER) && !defined(UNITY_PASS_META))
+#define UNITY_SHOULD_SAMPLE_SH (defined(LIGHTPROBE_SH) && !defined(UNITY_PASS_FORWARDADD) && !defined(UNITY_PASS_SHADOWCASTER) && !defined(UNITY_PASS_META))
 
 #include "UnityShaderVariables.cginc"
 #include "UnityShaderUtilities.cginc"
@@ -223,7 +223,7 @@ inline float3 ObjSpaceLightDir( in float4 v )
     #endif
 }
 
-// Computes world space view direction, from object space position
+// Computes world space view direction from object position in world space
 inline float3 UnityWorldSpaceViewDir( in float3 worldPos )
 {
     return _WorldSpaceCameraPos.xyz - worldPos;
@@ -512,11 +512,7 @@ inline half3 DecodeHDR(half4 data, half4 decodeInstructions, int colorspaceIsGam
     if(colorspaceIsGamma)
         return (decodeInstructions.x * alpha) * data.rgb;
 
-#   if defined(UNITY_USE_NATIVE_HDR)
-    return decodeInstructions.x * data.rgb; // Multiplier for future HDRI relative to absolute conversion.
-#   else
     return (decodeInstructions.x * pow(alpha, decodeInstructions.y)) * data.rgb;
-#   endif
 }
 
 // Decodes HDR textures
@@ -1015,7 +1011,7 @@ float4 UnityApplyLinearShadowBias(float4 clipPos)
 
 // In case someone by accident tries to compile fog code in one of the g-buffer or shadow passes:
 // treat it as fog is off.
-#if defined(UNITY_PASS_PREPASSBASE) || defined(UNITY_PASS_DEFERRED) || defined(UNITY_PASS_SHADOWCASTER)
+#if defined(UNITY_PASS_DEFERRED) || defined(UNITY_PASS_SHADOWCASTER)
 #undef FOG_LINEAR
 #undef FOG_EXP
 #undef FOG_EXP2
