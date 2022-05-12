@@ -12,7 +12,7 @@
     // Neither of these compilers are "Cg", but we used to use Cg in the past for this; keep the macro
     // name intact in case some user-written shaders depend on it being that.
     #define UNITY_COMPILER_CG
-#elif defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES3) || defined(SHADER_API_METAL) || defined(SHADER_API_VULKAN) || defined(SHADER_API_GLES)
+#elif defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES3) || defined(SHADER_API_METAL) || defined(SHADER_API_VULKAN) || defined(SHADER_API_SWITCH) || defined(SHADER_API_GLES)
     #define UNITY_COMPILER_HLSL
     #define UNITY_COMPILER_HLSLCC
 #elif defined(SHADER_API_D3D11)
@@ -553,7 +553,7 @@ float4 texCUBEproj(samplerCUBE s, in float4 t)          { return texCUBE(s, t.xy
 #define texRECTbias tex2Dbias
 #define texRECTproj tex2Dproj
 
-#if defined(SHADER_API_PSSL)
+#if defined(SHADER_API_PSSL) || (defined (SHADER_API_SWITCH) && defined(UNITY_COMPILER_DXC))
 #define VPOS            SV_Position
 #elif defined(UNITY_COMPILER_CG)
 // Cg seems to use WPOS instead of VPOS semantic?
