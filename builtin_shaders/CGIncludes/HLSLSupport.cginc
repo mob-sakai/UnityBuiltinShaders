@@ -467,10 +467,10 @@ min16float4 texCUBEproj(samplerCUBE_h s, in float4 t)   { return texCUBE(s, t.xy
     #define UNITY_SAMPLE_TEX2D_SAMPLER_LOD(tex, samplertex, coord, lod) tex.SampleLevel (sampler##samplertex, coord, lod)
 
 #if defined(UNITY_COMPILER_HLSLCC) && (!defined(SHADER_API_GLCORE) || defined(SHADER_API_SWITCH)) // GL Core doesn't have the _half mangling, the rest of them do. Workaround for Nintendo Switch.
-    #define UNITY_DECLARE_TEX2D_HALF(tex) Texture2D_half tex; SamplerState sampler##tex
-    #define UNITY_DECLARE_TEX2D_FLOAT(tex) Texture2D_float tex; SamplerState sampler##tex
-    #define UNITY_DECLARE_TEX2D_NOSAMPLER_HALF(tex) Texture2D_half tex
-    #define UNITY_DECLARE_TEX2D_NOSAMPLER_FLOAT(tex) Texture2D_float tex
+    #define UNITY_DECLARE_TEX2D_HALF(tex) Texture2D<half4> tex; SamplerState sampler##tex
+    #define UNITY_DECLARE_TEX2D_FLOAT(tex) Texture2D<float4> tex; SamplerState sampler##tex
+    #define UNITY_DECLARE_TEX2D_NOSAMPLER_HALF(tex) Texture2D<half4> tex
+    #define UNITY_DECLARE_TEX2D_NOSAMPLER_FLOAT(tex) Texture2D<float4> tex
 #else
     #define UNITY_DECLARE_TEX2D_HALF(tex) Texture2D tex; SamplerState sampler##tex
     #define UNITY_DECLARE_TEX2D_FLOAT(tex) Texture2D tex; SamplerState sampler##tex
@@ -498,8 +498,8 @@ min16float4 texCUBEproj(samplerCUBE_h s, in float4 t)   { return texCUBE(s, t.xy
     #define UNITY_SAMPLE_TEX3D_SAMPLER_LOD(tex, samplertex, coord, lod) tex.SampleLevel(sampler##samplertex, coord, lod)
 
 #if defined(UNITY_COMPILER_HLSLCC) && !defined(SHADER_API_GLCORE) // GL Core doesn't have the _half mangling, the rest of them do.
-    #define UNITY_DECLARE_TEX3D_FLOAT(tex) Texture3D_float tex; SamplerState sampler##tex
-    #define UNITY_DECLARE_TEX3D_HALF(tex) Texture3D_half tex; SamplerState sampler##tex
+    #define UNITY_DECLARE_TEX3D_FLOAT(tex) Texture3D<float4> tex; SamplerState sampler##tex
+    #define UNITY_DECLARE_TEX3D_HALF(tex) Texture3D<half4> tex; SamplerState sampler##tex
 #else
     #define UNITY_DECLARE_TEX3D_FLOAT(tex) Texture3D tex; SamplerState sampler##tex
     #define UNITY_DECLARE_TEX3D_HALF(tex) Texture3D tex; SamplerState sampler##tex
