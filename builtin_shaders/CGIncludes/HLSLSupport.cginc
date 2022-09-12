@@ -885,7 +885,11 @@ min16float4 texCUBEproj(samplerCUBE_h s, in float4 t)   { return texCUBE(s, t.xy
 #define UNITY_DISPLAY_ORIENTATION_PRETRANSFORM_270 3
 
 #ifdef UNITY_PRETRANSFORM_TO_DISPLAY_ORIENTATION
-    cbuffer UnityDisplayOrientationPreTransformData { int UnityDisplayOrientationPreTransform; };
+#   ifdef UNITY_COMPILER_DXC
+        [[vk::constant_id(1)]] const int UnityDisplayOrientationPreTransform = 0;
+#   else
+        cbuffer UnityDisplayOrientationPreTransformData { int UnityDisplayOrientationPreTransform; };
+#   endif
 #   define UNITY_DISPLAY_ORIENTATION_PRETRANSFORM UnityDisplayOrientationPreTransform
 #else
 #   define UNITY_DISPLAY_ORIENTATION_PRETRANSFORM UNITY_DISPLAY_ORIENTATION_PRETRANSFORM_0
