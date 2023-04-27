@@ -52,8 +52,11 @@ Shader "Hidden/BlitCopyHDRTonemap" {
             #define kColorGamutDisplayP3    3
             #define kColorGamutHDR10        4
             #define kColorGamutDolbyHDR     5
-
+#if SHADER_API_METAL
+            #define kReferenceLuminanceWhiteForRec709 100
+#else
             #define kReferenceLuminanceWhiteForRec709 80
+#endif
 
             float3 LinearToSRGB(float3 color)
             {
