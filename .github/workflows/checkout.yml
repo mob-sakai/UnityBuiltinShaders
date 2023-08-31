@@ -1,0 +1,26 @@
+name: checkout
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - develop
+
+jobs:
+  checkout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - run: |
+          echo "======== Git Config ========"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+      - run: |
+          git checkout -f main
+          git checkout origin/develop -- .github
+          git commit -m "chore: checkout develop workflow [skip ci]" && git push origin main || :
