@@ -45,6 +45,7 @@ struct SpeedTreeVB
 uniform half _WindQuality;
 uniform half _WindEnabled;
 
+#define SPEEDTREE_8_WIND 1 // v7 and v8 use the same wind
 #include "SpeedTreeWind.cginc"
 
 #endif
