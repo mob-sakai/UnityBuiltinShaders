@@ -207,7 +207,7 @@ struct Input
     fixed4 color : COLOR;
 
 #ifdef EFFECT_BACKSIDE_NORMALS
-    fixed facing : VFACE;
+    bool facing : SV_IsFrontFace;
 #endif
 };
 
@@ -307,7 +307,7 @@ void SpeedTreeSurf(Input IN, inout SurfaceOutputStandard OUT)
 
     // flip normal on backsides
 #ifdef EFFECT_BACKSIDE_NORMALS
-    if (IN.facing < 0.5)
+    if (!IN.facing)
     {
         OUT.Normal.z = -OUT.Normal.z;
     }

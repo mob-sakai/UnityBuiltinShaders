@@ -12,6 +12,7 @@
 
 #if defined(ENABLE_WIND) && !defined(_WINDQUALITY_NONE)
     #define SPEEDTREE_Y_UP
+    #define SPEEDTREE_8_WIND 1
     #include "SpeedTreeWind.cginc"
     UNITY_INSTANCING_BUFFER_START(STWind)
         UNITY_DEFINE_INSTANCED_PROP(float, _GlobalWindTime)
@@ -23,9 +24,9 @@ struct Input
     half2   uv_MainTex  : TEXCOORD0;
     fixed4  color       : COLOR;
 
-    #ifdef EFFECT_BACKSIDE_NORMALS
-        fixed   facing      : VFACE;
-    #endif
+#ifdef EFFECT_BACKSIDE_NORMALS
+    bool facing         : SV_IsFrontFace;
+#endif
 };
 
 sampler2D _MainTex;
@@ -253,7 +254,7 @@ void SpeedTreeSurf(Input IN, inout SurfaceOutputStandard OUT)
 
     // flip normal on backsides
     #ifdef EFFECT_BACKSIDE_NORMALS
-        if (IN.facing < 0.5)
+        if (!IN.facing)
         {
             OUT.Normal.z = -OUT.Normal.z;
         }
