@@ -51,7 +51,7 @@ Shader"Nature/SpeedTree9"
         CGPROGRAM
             #pragma surface SpeedTreeSurf SpeedTreeSubsurface vertex:SpeedTreeVert9 dithercrossfade addshadow
             #pragma target 3.0
-            #pragma multi_compile_vertex LOD_FADE_PERCENTAGE
+            #define LOD_FADE_PERCENTAGE 1
             #pragma instancing_options assumeuniformscaling maxcount:50
 
             #pragma shader_feature_local EFFECT_BILLBOARD
@@ -92,12 +92,12 @@ void Wind9(inout appdata_full sIn, bool bHistory /*must be compile-time constant
 
     float3 vUp = normalize(mul((float3x3) unity_WorldToObject, float3(0.0, 1.0, 0.0)));
     float3 vWindyPosition = sIn.vertex.xyz;
- 
+
     // global noise applied to animation instances to break off synchronized
     // movement among multiple instances under wind effect.
     float3 treePos = float3(unity_ObjectToWorld[0].w, unity_ObjectToWorld[1].w, unity_ObjectToWorld[2].w);
     float3 vGlobalNoisePosition = treePos * cb.m_fWindIndependence;
-    
+
     #if WIND_RIPPLE
     {
         float fRippleWeight = sIn.texcoord1.w;
@@ -122,7 +122,7 @@ void Wind9(inout appdata_full sIn, bool bHistory /*must be compile-time constant
         #endif
     }
     #endif
-    
+
     #if WIND_BRANCH2
     {
         float fBranch2Weight = sIn.texcoord2.z;
@@ -148,7 +148,7 @@ void Wind9(inout appdata_full sIn, bool bHistory /*must be compile-time constant
         );
     }
     #endif
-    
+
     #if WIND_BRANCH1
     {
         float fBranch1Weight = sIn.texcoord1.z;
@@ -208,7 +208,7 @@ void SpeedTreeVert9(inout appdata_full v)
         v.vertex.xyz = DoLeafFacing(v.vertex.xyz, vAnchorPos);
     }
 #endif // EFFECT_LEAF_FACING
-    
+
     float3 vVertexObjectSpacePosition = v.vertex;
 #if ENABLE_WIND
     const bool bHistory = false; // must be compile time constant
@@ -304,7 +304,7 @@ void SpeedTreeSurf(Input IN, inout SurfaceOutputStandard OUT)
 {
     fixed4 color = tex2D(_MainTex, IN.uv_MainTex) * _ColorTint;
     float fBlend = IN.color.a;
-    
+
     // transparency
     OUT.Alpha = color.a * fBlend;
     clip(OUT.Alpha - 0.3333);
@@ -384,7 +384,7 @@ void SpeedTreeSurf(Input IN, inout SurfaceOutputStandard OUT)
 //
 //        CGPROGRAM
 //            #pragma surface SpeedTreeSurf Standard vertex:SpeedTreeVert addshadow noinstancing
-//            #pragma multi_compile_vertex LOD_FADE_PERCENTAGE
+//            #define LOD_FADE_PERCENTAGE 1
 //            #pragma shader_feature_local EFFECT_BILLBOARD
 //            #pragma shader_feature_local EFFECT_EXTRA_TEX
 //
