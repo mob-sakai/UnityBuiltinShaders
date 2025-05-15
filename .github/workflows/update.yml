@@ -1,22 +1,42 @@
 name: update
 
 on:
+  issue_comment:
+    types: [created]
   workflow_dispatch:
-  # schedule:
-  #   - cron: "0 0 * * *" # daily
 
 jobs:
-  release:
+  update:
+    if: github.event_name != 'issue_comment' ||
+        startsWith(github.event.comment.body, '/run update')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: "Check Running Workflows"
+        id: check
+        run: |
+          # Get in-progress or queued workflows.
+          gh auth login --with-token < <(echo ${{ github.token }})
+          RUNNING_WORKFLOWS=`gh api -X GET /repos/${{ github.repository }}/actions/runs | jq -c '[ .workflow_runs[] | select(.status | test("in_progress|queued")) | .name ]'`
+          echo "======== Running Workflows ========"
+          echo "${RUNNING_WORKFLOWS}"
+
+          # [ERROR] Another 'update' workflow is in progress.
+          [ 1 -lt `echo ${RUNNING_WORKFLOWS} | jq '[ .[] | select ( . == "update" ) ] | length'` ] && echo "::error::Another 'update' workflow is running." && exit 1 || :
+
+      - uses: actions/checkout@v4
         with:
-          ref: batch
           fetch-depth: 0
-          token: ${{ secrets.GH_PAT }}
 
       - run: |
-          git config user.name github-actions
-          git config user.email github-actions@github.com
+          echo "======== Git Config ========"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
 
+      - run: |
+          git fetch --tags
           .github/workflows/update.sh
+
+      - run: |
+          git checkout -f main
+          git checkout origin/develop -- .github
+          git commit -m "chore: checkout develop workflow [skip ci]" && git push origin main || :
